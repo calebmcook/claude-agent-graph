@@ -99,9 +99,7 @@ class TestNodeOperations:
     def test_get_node(self):
         """Test retrieving a node."""
         graph = AgentGraph(name="test_graph")
-        added_node = graph.add_node(
-            node_id="agent_1", system_prompt="Test agent"
-        )
+        added_node = graph.add_node(node_id="agent_1", system_prompt="Test agent")
         retrieved_node = graph.get_node("agent_1")
 
         assert retrieved_node.node_id == added_node.node_id
@@ -160,9 +158,7 @@ class TestEdgeOperations:
 
     def test_add_directed_edge(self, graph_with_nodes):
         """Test adding a directed edge."""
-        edge = graph_with_nodes.add_edge(
-            from_node="agent_1", to_node="agent_2", directed=True
-        )
+        edge = graph_with_nodes.add_edge(from_node="agent_1", to_node="agent_2", directed=True)
 
         assert edge.from_node == "agent_1"
         assert edge.to_node == "agent_2"
@@ -171,9 +167,7 @@ class TestEdgeOperations:
 
     def test_add_undirected_edge(self, graph_with_nodes):
         """Test adding an undirected edge."""
-        edge = graph_with_nodes.add_edge(
-            from_node="agent_1", to_node="agent_2", directed=False
-        )
+        edge = graph_with_nodes.add_edge(from_node="agent_1", to_node="agent_2", directed=False)
 
         assert edge.directed is False
         assert graph_with_nodes.edge_count == 1
@@ -194,9 +188,7 @@ class TestEdgeOperations:
     def test_add_edge_node_not_found(self, graph_with_nodes):
         """Test that adding edge with missing node raises error."""
         with pytest.raises(NodeNotFoundError):
-            graph_with_nodes.add_edge(
-                from_node="agent_1", to_node="nonexistent"
-            )
+            graph_with_nodes.add_edge(from_node="agent_1", to_node="nonexistent")
 
         with pytest.raises(NodeNotFoundError):
             graph_with_nodes.add_edge(from_node="nonexistent", to_node="agent_1")
@@ -217,9 +209,7 @@ class TestEdgeOperations:
 
     def test_get_edge(self, graph_with_nodes):
         """Test retrieving an edge."""
-        added_edge = graph_with_nodes.add_edge(
-            from_node="agent_1", to_node="agent_2"
-        )
+        added_edge = graph_with_nodes.add_edge(from_node="agent_1", to_node="agent_2")
         retrieved_edge = graph_with_nodes.get_edge(from_node="agent_1", to_node="agent_2")
 
         assert retrieved_edge.edge_id == added_edge.edge_id

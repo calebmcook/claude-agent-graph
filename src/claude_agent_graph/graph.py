@@ -8,7 +8,7 @@ and message routing.
 
 import logging
 from collections import defaultdict
-from typing import Any, Optional
+from typing import Any
 
 import networkx as nx
 
@@ -69,7 +69,7 @@ class AgentGraph:
         name: str,
         max_nodes: int = 10000,
         persistence_enabled: bool = True,
-        topology_constraint: Optional[str] = None,
+        topology_constraint: str | None = None,
     ):
         """
         Initialize an AgentGraph.
@@ -245,9 +245,7 @@ class AgentGraph:
 
         # Check for duplicate edge
         if edge_id in self._edges:
-            raise DuplicateEdgeError(
-                f"Edge from '{from_node}' to '{to_node}' already exists"
-            )
+            raise DuplicateEdgeError(f"Edge from '{from_node}' to '{to_node}' already exists")
 
         # Check reverse edge for undirected graphs
         if not directed:
@@ -440,8 +438,7 @@ class AgentGraph:
             return True
 
         raise TopologyViolationError(
-            f"Graph topology is '{current_topology}', "
-            f"but '{required_topology}' was required"
+            f"Graph topology is '{current_topology}', " f"but '{required_topology}' was required"
         )
 
     def get_isolated_nodes(self) -> list[str]:
@@ -537,9 +534,8 @@ class AgentGraph:
             for other_node in self._nodes:
                 if other_node == potential_center:
                     continue
-                if (
-                    self._nx_graph.has_edge(potential_center, other_node)
-                    or self._nx_graph.has_edge(other_node, potential_center)
+                if self._nx_graph.has_edge(potential_center, other_node) or self._nx_graph.has_edge(
+                    other_node, potential_center
                 ):
                     connected_count += 1
 
@@ -554,10 +550,7 @@ class AgentGraph:
 
         # Center must have multiple connections (fanout > 1 OR fanin > 1)
         # This distinguishes stars from simple chains
-        if (
-            self._nx_graph.out_degree(center) < 2
-            and self._nx_graph.in_degree(center) < 2
-        ):
+        if self._nx_graph.out_degree(center) < 2 and self._nx_graph.in_degree(center) < 2:
             return False
 
         # Verify no edges between spokes (non-center nodes)
@@ -579,10 +572,7 @@ class AgentGraph:
 
         # All nodes should have in-degree and out-degree of 1
         for node in self._nodes:
-            if (
-                self._nx_graph.in_degree(node) != 1
-                or self._nx_graph.out_degree(node) != 1
-            ):
+            if self._nx_graph.in_degree(node) != 1 or self._nx_graph.out_degree(node) != 1:
                 return False
 
         return True
@@ -640,10 +630,7 @@ class AgentGraph:
 
         elif constraint == "chain":
             # Chain: each node has at most 1 outgoing and 1 incoming
-            if (
-                self._nx_graph.out_degree(from_node) > 0
-                or self._nx_graph.in_degree(to_node) > 0
-            ):
+            if self._nx_graph.out_degree(from_node) > 0 or self._nx_graph.in_degree(to_node) > 0:
                 raise TopologyViolationError(
                     f"Adding edge {from_node} -> {to_node} violates chain constraint"
                 )

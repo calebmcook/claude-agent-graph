@@ -7,7 +7,6 @@ and cycle graphs.
 """
 
 from enum import Enum
-from typing import Optional
 
 import networkx as nx
 
@@ -176,9 +175,8 @@ def is_star(graph: nx.DiGraph) -> bool:
         for other_node in graph.nodes():
             if other_node == potential_center:
                 continue
-            if (
-                graph.has_edge(potential_center, other_node)
-                or graph.has_edge(other_node, potential_center)
+            if graph.has_edge(potential_center, other_node) or graph.has_edge(
+                other_node, potential_center
             ):
                 connected_count += 1
 

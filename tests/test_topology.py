@@ -89,11 +89,13 @@ class TestTreeTopology:
     def test_deep_tree(self):
         """Test detection of deep tree."""
         graph = nx.DiGraph()
-        graph.add_edges_from([
-            ("a", "b"),
-            ("b", "c"),
-            ("c", "d"),
-        ])
+        graph.add_edges_from(
+            [
+                ("a", "b"),
+                ("b", "c"),
+                ("c", "d"),
+            ]
+        )
         assert is_tree(graph) is True
 
     def test_not_tree_multiple_roots(self):
@@ -127,12 +129,14 @@ class TestDAGTopology:
     def test_complex_dag(self):
         """Test detection of complex DAG."""
         graph = nx.DiGraph()
-        graph.add_edges_from([
-            ("a", "b"),
-            ("a", "c"),
-            ("b", "d"),
-            ("c", "d"),
-        ])
+        graph.add_edges_from(
+            [
+                ("a", "b"),
+                ("a", "c"),
+                ("b", "d"),
+                ("c", "d"),
+            ]
+        )
         assert is_dag(graph) is True
 
     def test_not_dag_with_cycle(self):
@@ -188,22 +192,26 @@ class TestStarTopology:
     def test_simple_star(self):
         """Test detection of simple star."""
         graph = nx.DiGraph()
-        graph.add_edges_from([
-            ("hub", "spoke_1"),
-            ("hub", "spoke_2"),
-            ("hub", "spoke_3"),
-        ])
+        graph.add_edges_from(
+            [
+                ("hub", "spoke_1"),
+                ("hub", "spoke_2"),
+                ("hub", "spoke_3"),
+            ]
+        )
         assert is_star(graph) is True
 
     def test_star_with_bidirectional_edges(self):
         """Test star with bidirectional connections."""
         graph = nx.DiGraph()
-        graph.add_edges_from([
-            ("hub", "spoke_1"),
-            ("spoke_1", "hub"),
-            ("hub", "spoke_2"),
-            ("spoke_2", "hub"),
-        ])
+        graph.add_edges_from(
+            [
+                ("hub", "spoke_1"),
+                ("spoke_1", "hub"),
+                ("hub", "spoke_2"),
+                ("spoke_2", "hub"),
+            ]
+        )
         assert is_star(graph) is True
 
     def test_not_star_single_node(self):
@@ -227,10 +235,12 @@ class TestStarTopology:
     def test_not_star_disconnected_spoke(self):
         """Test that star with disconnected spoke fails."""
         graph = nx.DiGraph()
-        graph.add_edges_from([
-            ("hub", "spoke_1"),
-            ("hub", "spoke_2"),
-        ])
+        graph.add_edges_from(
+            [
+                ("hub", "spoke_1"),
+                ("hub", "spoke_2"),
+            ]
+        )
         graph.add_node("spoke_3")  # Not connected
         assert is_star(graph) is False
 
@@ -265,12 +275,14 @@ class TestCycleGraph:
     def test_not_cycle_with_branch(self):
         """Test that branching breaks cycle."""
         graph = nx.DiGraph()
-        graph.add_edges_from([
-            ("a", "b"),
-            ("b", "c"),
-            ("c", "a"),
-            ("b", "d"),
-        ])
+        graph.add_edges_from(
+            [
+                ("a", "b"),
+                ("b", "c"),
+                ("c", "a"),
+                ("b", "d"),
+            ]
+        )
         assert is_cycle_graph(graph) is False
 
 
@@ -306,11 +318,13 @@ class TestTopologyDetection:
         # because trees take priority in topology detection.
         # This is a rooted tree with hub as root and spokes as children.
         graph = nx.DiGraph()
-        graph.add_edges_from([
-            ("hub", "spoke_1"),
-            ("hub", "spoke_2"),
-            ("hub", "spoke_3"),
-        ])
+        graph.add_edges_from(
+            [
+                ("hub", "spoke_1"),
+                ("hub", "spoke_2"),
+                ("hub", "spoke_3"),
+            ]
+        )
         assert detect_topology(graph) == GraphTopology.TREE
 
     def test_detect_cycle(self):
@@ -322,24 +336,28 @@ class TestTopologyDetection:
     def test_detect_dag(self):
         """Test detection of DAG topology."""
         graph = nx.DiGraph()
-        graph.add_edges_from([
-            ("a", "b"),
-            ("a", "c"),
-            ("b", "d"),
-            ("c", "d"),
-        ])
+        graph.add_edges_from(
+            [
+                ("a", "b"),
+                ("a", "c"),
+                ("b", "d"),
+                ("c", "d"),
+            ]
+        )
         assert detect_topology(graph) == GraphTopology.DAG
 
     def test_detect_unknown(self):
         """Test detection of unknown topology."""
         graph = nx.DiGraph()
         # Create a graph with cycle that's not a simple cycle
-        graph.add_edges_from([
-            ("a", "b"),
-            ("b", "c"),
-            ("c", "a"),
-            ("b", "d"),
-        ])
+        graph.add_edges_from(
+            [
+                ("a", "b"),
+                ("b", "c"),
+                ("c", "a"),
+                ("b", "d"),
+            ]
+        )
         assert detect_topology(graph) == GraphTopology.UNKNOWN
 
 
