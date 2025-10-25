@@ -9,13 +9,12 @@ and message routing.
 import logging
 from collections import defaultdict
 from datetime import datetime
-from pathlib import Path
 from typing import Any
 
 import networkx as nx
 
-from .models import Edge, Message, Node, SharedState
-from .storage import ConversationFile
+from .backends import FilesystemBackend, StorageBackend
+from .models import Edge, Message, Node
 
 logger = logging.getLogger(__name__)
 
@@ -73,7 +72,7 @@ class AgentGraph:
         max_nodes: int = 10000,
         persistence_enabled: bool = True,
         topology_constraint: str | None = None,
-        storage_dir: str = "./conversations",
+        storage_backend: StorageBackend | None = None,
     ):
         """
         Initialize an AgentGraph.
@@ -84,24 +83,27 @@ class AgentGraph:
             persistence_enabled: Whether to enable persistence
             topology_constraint: Optional topology constraint
                 (e.g., "tree", "dag", "mesh", "chain", "star")
-            storage_dir: Directory for conversation files (default: ./conversations)
+            storage_backend: Storage backend for conversations (default: FilesystemBackend)
         """
         self.name = name
         self.max_nodes = max_nodes
         self.persistence_enabled = persistence_enabled
         self.topology_constraint = topology_constraint
-        self.storage_dir = Path(storage_dir)
+
+        # Set up storage backend (default to FilesystemBackend)
+        if storage_backend is None:
+            storage_backend = FilesystemBackend(base_dir=f"./conversations/{name}")
+        self.storage = storage_backend
 
         # Internal data structures
         self._nodes: dict[str, Node] = {}
         self._edges: dict[str, Edge] = {}
         self._adjacency: dict[str, list[str]] = defaultdict(list)
-        self._conversation_files: dict[str, ConversationFile] = {}
 
         # NetworkX graph for topology operations
         self._nx_graph = nx.DiGraph()
 
-        logger.debug(f"Created AgentGraph '{name}' with storage at {self.storage_dir}")
+        logger.debug(f"Created AgentGraph '{name}' with storage backend {type(self.storage).__name__}")
 
     def __repr__(self) -> str:
         """Return string representation of the graph."""
@@ -266,17 +268,14 @@ class AgentGraph:
         if self.topology_constraint:
             self._validate_topology_constraint(from_node, to_node, directed)
 
-        # Create edge with conversation file path
-        convo_file = f"conversations/{edge_id}.jsonl"
-        shared_state = SharedState(conversation_file=convo_file)
-
+        # Create edge
         try:
             edge = Edge(
                 edge_id=edge_id,
                 from_node=from_node,
                 to_node=to_node,
                 directed=directed,
-                properties={**properties, "shared_state": shared_state.model_dump()},
+                properties=properties,
             )
         except ValueError as e:
             raise ValueError(f"Edge validation failed: {e}")
@@ -644,23 +643,6 @@ class AgentGraph:
 
     # Message Routing & Delivery Methods
 
-    def _get_conversation_file(self, edge_id: str) -> ConversationFile:
-        """
-        Get or create ConversationFile for an edge.
-
-        Args:
-            edge_id: The edge ID
-
-        Returns:
-            ConversationFile instance for the edge
-        """
-        if edge_id not in self._conversation_files:
-            # Create conversation file path
-            file_path = self.storage_dir / self.name / f"{edge_id}.jsonl"
-            self._conversation_files[edge_id] = ConversationFile(str(file_path))
-
-        return self._conversation_files[edge_id]
-
     async def send_message(
         self,
         from_node: str,
@@ -726,9 +708,8 @@ class AgentGraph:
             metadata=metadata if metadata else {},
         )
 
-        # Get conversation file and append
-        conv_file = self._get_conversation_file(edge_id)
-        await conv_file.append(message)
+        # Append message to storage backend
+        await self.storage.append_message(edge_id, message)
 
         logger.debug(f"Sent message {message.message_id}: {from_node} -> {to_node}")
         return message
@@ -789,9 +770,8 @@ class AgentGraph:
         if edge_id is None:
             raise EdgeNotFoundError(f"No edge found between '{from_node}' and '{to_node}'")
 
-        # Get conversation file and read
-        conv_file = self._get_conversation_file(edge_id)
-        messages = await conv_file.read(since=since, limit=limit)
+        # Read messages from storage backend
+        messages = await self.storage.read_messages(edge_id, since=since, limit=limit)
 
         logger.debug(f"Retrieved {len(messages)} messages between {from_node} and {to_node}")
         return messages

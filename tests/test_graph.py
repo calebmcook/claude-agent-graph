@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from claude_agent_graph.backends import FilesystemBackend
 from claude_agent_graph.graph import (
     AgentGraph,
     DuplicateEdgeError,
@@ -510,7 +511,7 @@ class TestGraphMessageRouting:
     @pytest.mark.asyncio
     async def test_send_message_basic(self, tmp_path: Path) -> None:
         """Test sending a basic message between nodes."""
-        graph = AgentGraph(name="test", storage_dir=str(tmp_path))
+        graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
         graph.add_node("a", "Agent A")
         graph.add_node("b", "Agent B")
         graph.add_edge("a", "b")
@@ -525,7 +526,7 @@ class TestGraphMessageRouting:
     @pytest.mark.asyncio
     async def test_send_message_with_metadata(self, tmp_path: Path) -> None:
         """Test sending message with metadata."""
-        graph = AgentGraph(name="test", storage_dir=str(tmp_path))
+        graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
         graph.add_node("a", "A")
         graph.add_node("b", "B")
         graph.add_edge("a", "b")
@@ -538,7 +539,7 @@ class TestGraphMessageRouting:
     @pytest.mark.asyncio
     async def test_send_message_nonexistent_sender(self, tmp_path: Path) -> None:
         """Test sending from non-existent node raises error."""
-        graph = AgentGraph(name="test", storage_dir=str(tmp_path))
+        graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
         graph.add_node("b", "B")
 
         with pytest.raises(NodeNotFoundError):
@@ -547,7 +548,7 @@ class TestGraphMessageRouting:
     @pytest.mark.asyncio
     async def test_send_message_nonexistent_receiver(self, tmp_path: Path) -> None:
         """Test sending to non-existent node raises error."""
-        graph = AgentGraph(name="test", storage_dir=str(tmp_path))
+        graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
         graph.add_node("a", "A")
 
         with pytest.raises(NodeNotFoundError):
@@ -556,7 +557,7 @@ class TestGraphMessageRouting:
     @pytest.mark.asyncio
     async def test_send_message_no_edge(self, tmp_path: Path) -> None:
         """Test sending without edge raises error."""
-        graph = AgentGraph(name="test", storage_dir=str(tmp_path))
+        graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
         graph.add_node("a", "A")
         graph.add_node("b", "B")
 
@@ -566,7 +567,7 @@ class TestGraphMessageRouting:
     @pytest.mark.asyncio
     async def test_send_multiple_messages(self, tmp_path: Path) -> None:
         """Test sending multiple messages."""
-        graph = AgentGraph(name="test", storage_dir=str(tmp_path))
+        graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
         graph.add_node("a", "A")
         graph.add_node("b", "B")
         graph.add_edge("a", "b")
@@ -581,7 +582,7 @@ class TestGraphMessageRouting:
     @pytest.mark.asyncio
     async def test_get_conversation_all_messages(self, tmp_path: Path) -> None:
         """Test retrieving all conversation messages."""
-        graph = AgentGraph(name="test", storage_dir=str(tmp_path))
+        graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
         graph.add_node("a", "A")
         graph.add_node("b", "B")
         graph.add_edge("a", "b")
@@ -599,7 +600,7 @@ class TestGraphMessageRouting:
     @pytest.mark.asyncio
     async def test_get_conversation_with_limit(self, tmp_path: Path) -> None:
         """Test retrieving limited messages."""
-        graph = AgentGraph(name="test", storage_dir=str(tmp_path))
+        graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
         graph.add_node("a", "A")
         graph.add_node("b", "B")
         graph.add_edge("a", "b")
@@ -616,7 +617,7 @@ class TestGraphMessageRouting:
     @pytest.mark.asyncio
     async def test_get_conversation_nonexistent_nodes(self, tmp_path: Path) -> None:
         """Test get_conversation with non-existent nodes."""
-        graph = AgentGraph(name="test", storage_dir=str(tmp_path))
+        graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
         graph.add_node("a", "A")
 
         with pytest.raises(NodeNotFoundError):
@@ -625,7 +626,7 @@ class TestGraphMessageRouting:
     @pytest.mark.asyncio
     async def test_get_conversation_no_edge(self, tmp_path: Path) -> None:
         """Test get_conversation without edge."""
-        graph = AgentGraph(name="test", storage_dir=str(tmp_path))
+        graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
         graph.add_node("a", "A")
         graph.add_node("b", "B")
 
@@ -635,7 +636,7 @@ class TestGraphMessageRouting:
     @pytest.mark.asyncio
     async def test_get_recent_messages(self, tmp_path: Path) -> None:
         """Test get_recent_messages convenience method."""
-        graph = AgentGraph(name="test", storage_dir=str(tmp_path))
+        graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
         graph.add_node("a", "A")
         graph.add_node("b", "B")
         graph.add_edge("a", "b")
@@ -652,7 +653,7 @@ class TestGraphMessageRouting:
     @pytest.mark.asyncio
     async def test_undirected_edge_messaging(self, tmp_path: Path) -> None:
         """Test messaging works with undirected edges."""
-        graph = AgentGraph(name="test", storage_dir=str(tmp_path))
+        graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
         graph.add_node("a", "A")
         graph.add_node("b", "B")
         graph.add_edge("a", "b", directed=False)
