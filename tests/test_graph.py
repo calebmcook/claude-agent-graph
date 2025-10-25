@@ -2,6 +2,8 @@
 Tests for AgentGraph class and core graph operations.
 """
 
+from pathlib import Path
+
 import pytest
 
 from claude_agent_graph.graph import (
@@ -500,3 +502,164 @@ class TestIsolatedNodes:
 
         isolated = set(graph.get_isolated_nodes())
         assert isolated == {"c", "d"}
+
+
+class TestGraphMessageRouting:
+    """Tests for AgentGraph message routing methods."""
+
+    @pytest.mark.asyncio
+    async def test_send_message_basic(self, tmp_path: Path) -> None:
+        """Test sending a basic message between nodes."""
+        graph = AgentGraph(name="test", storage_dir=str(tmp_path))
+        graph.add_node("a", "Agent A")
+        graph.add_node("b", "Agent B")
+        graph.add_edge("a", "b")
+
+        msg = await graph.send_message("a", "b", "Hello")
+
+        assert msg.from_node == "a"
+        assert msg.to_node == "b"
+        assert msg.content == "Hello"
+        assert msg.message_id.startswith("msg_")
+
+    @pytest.mark.asyncio
+    async def test_send_message_with_metadata(self, tmp_path: Path) -> None:
+        """Test sending message with metadata."""
+        graph = AgentGraph(name="test", storage_dir=str(tmp_path))
+        graph.add_node("a", "A")
+        graph.add_node("b", "B")
+        graph.add_edge("a", "b")
+
+        msg = await graph.send_message("a", "b", "Test", priority="high", task_id=123)
+
+        assert msg.metadata["priority"] == "high"
+        assert msg.metadata["task_id"] == 123
+
+    @pytest.mark.asyncio
+    async def test_send_message_nonexistent_sender(self, tmp_path: Path) -> None:
+        """Test sending from non-existent node raises error."""
+        graph = AgentGraph(name="test", storage_dir=str(tmp_path))
+        graph.add_node("b", "B")
+
+        with pytest.raises(NodeNotFoundError):
+            await graph.send_message("a", "b", "Test")
+
+    @pytest.mark.asyncio
+    async def test_send_message_nonexistent_receiver(self, tmp_path: Path) -> None:
+        """Test sending to non-existent node raises error."""
+        graph = AgentGraph(name="test", storage_dir=str(tmp_path))
+        graph.add_node("a", "A")
+
+        with pytest.raises(NodeNotFoundError):
+            await graph.send_message("a", "b", "Test")
+
+    @pytest.mark.asyncio
+    async def test_send_message_no_edge(self, tmp_path: Path) -> None:
+        """Test sending without edge raises error."""
+        graph = AgentGraph(name="test", storage_dir=str(tmp_path))
+        graph.add_node("a", "A")
+        graph.add_node("b", "B")
+
+        with pytest.raises(EdgeNotFoundError):
+            await graph.send_message("a", "b", "Test")
+
+    @pytest.mark.asyncio
+    async def test_send_multiple_messages(self, tmp_path: Path) -> None:
+        """Test sending multiple messages."""
+        graph = AgentGraph(name="test", storage_dir=str(tmp_path))
+        graph.add_node("a", "A")
+        graph.add_node("b", "B")
+        graph.add_edge("a", "b")
+
+        msg1 = await graph.send_message("a", "b", "First")
+        msg2 = await graph.send_message("a", "b", "Second")
+        msg3 = await graph.send_message("a", "b", "Third")
+
+        assert msg1.message_id != msg2.message_id
+        assert msg2.message_id != msg3.message_id
+
+    @pytest.mark.asyncio
+    async def test_get_conversation_all_messages(self, tmp_path: Path) -> None:
+        """Test retrieving all conversation messages."""
+        graph = AgentGraph(name="test", storage_dir=str(tmp_path))
+        graph.add_node("a", "A")
+        graph.add_node("b", "B")
+        graph.add_edge("a", "b")
+
+        await graph.send_message("a", "b", "Message 1")
+        await graph.send_message("a", "b", "Message 2")
+        await graph.send_message("a", "b", "Message 3")
+
+        messages = await graph.get_conversation("a", "b")
+
+        assert len(messages) == 3
+        assert messages[0].content == "Message 1"
+        assert messages[2].content == "Message 3"
+
+    @pytest.mark.asyncio
+    async def test_get_conversation_with_limit(self, tmp_path: Path) -> None:
+        """Test retrieving limited messages."""
+        graph = AgentGraph(name="test", storage_dir=str(tmp_path))
+        graph.add_node("a", "A")
+        graph.add_node("b", "B")
+        graph.add_edge("a", "b")
+
+        for i in range(10):
+            await graph.send_message("a", "b", f"Message {i}")
+
+        messages = await graph.get_conversation("a", "b", limit=3)
+
+        assert len(messages) == 3
+        assert messages[0].content == "Message 7"
+        assert messages[2].content == "Message 9"
+
+    @pytest.mark.asyncio
+    async def test_get_conversation_nonexistent_nodes(self, tmp_path: Path) -> None:
+        """Test get_conversation with non-existent nodes."""
+        graph = AgentGraph(name="test", storage_dir=str(tmp_path))
+        graph.add_node("a", "A")
+
+        with pytest.raises(NodeNotFoundError):
+            await graph.get_conversation("a", "b")
+
+    @pytest.mark.asyncio
+    async def test_get_conversation_no_edge(self, tmp_path: Path) -> None:
+        """Test get_conversation without edge."""
+        graph = AgentGraph(name="test", storage_dir=str(tmp_path))
+        graph.add_node("a", "A")
+        graph.add_node("b", "B")
+
+        with pytest.raises(EdgeNotFoundError):
+            await graph.get_conversation("a", "b")
+
+    @pytest.mark.asyncio
+    async def test_get_recent_messages(self, tmp_path: Path) -> None:
+        """Test get_recent_messages convenience method."""
+        graph = AgentGraph(name="test", storage_dir=str(tmp_path))
+        graph.add_node("a", "A")
+        graph.add_node("b", "B")
+        graph.add_edge("a", "b")
+
+        for i in range(20):
+            await graph.send_message("a", "b", f"Msg {i}")
+
+        recent = await graph.get_recent_messages("a", "b", count=5)
+
+        assert len(recent) == 5
+        assert recent[0].content == "Msg 15"
+        assert recent[4].content == "Msg 19"
+
+    @pytest.mark.asyncio
+    async def test_undirected_edge_messaging(self, tmp_path: Path) -> None:
+        """Test messaging works with undirected edges."""
+        graph = AgentGraph(name="test", storage_dir=str(tmp_path))
+        graph.add_node("a", "A")
+        graph.add_node("b", "B")
+        graph.add_edge("a", "b", directed=False)
+
+        # Should work both directions
+        await graph.send_message("a", "b", "A to B")
+        await graph.send_message("b", "a", "B to A")
+
+        messages = await graph.get_conversation("a", "b")
+        assert len(messages) == 2
