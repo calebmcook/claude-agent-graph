@@ -85,6 +85,11 @@ class ConversationFile:
         """
         async with self._lock:
             try:
+                # Check if rotation is needed before appending
+                if self.needs_rotation():
+                    archive_path = await self._rotate_unlocked()
+                    logger.info(f"Auto-rotated before append: {archive_path}")
+
                 # Ensure directory exists before first write
                 await self._ensure_directory()
 
@@ -254,14 +259,149 @@ class ConversationFile:
 
         return messages
 
-    async def rotate(self) -> str:
+    async def _rotate_unlocked(self) -> str:
         """
-        Rotate the conversation file (to be implemented in Story 3.1.3).
+        Internal rotation method without lock acquisition.
+
+        This is called from append() which already holds the lock.
+        Do not call this directly - use rotate() instead.
 
         Returns:
-            Path to the archived file
+            Path to the archived file as a string
+        """
+        # Don't rotate if file doesn't exist
+        if not self.file_path.exists():
+            logger.debug(f"No file to rotate: {self.file_path}")
+            return ""
+
+        try:
+            # Generate archive filename with microsecond precision timestamp
+            now = datetime.now(timezone.utc)
+            timestamp_str = now.strftime("%Y-%m-%dT%H-%M-%S-%f")
+
+            # Create archive filename: name.timestamp.jsonl
+            stem = self.file_path.stem  # e.g., "conversation"
+            archive_name = f"{stem}.{timestamp_str}.jsonl"
+            archive_path = self.file_path.parent / archive_name
+
+            # Rename (atomic operation)
+            self.file_path.rename(archive_path)
+
+            logger.info(f"Rotated {self.file_path} to {archive_path}")
+            return str(archive_path)
+
+        except OSError as e:
+            logger.error(f"Failed to rotate {self.file_path}: {e}")
+            raise OSError(f"Failed to rotate conversation file: {e}") from e
+
+    async def rotate(self) -> str:
+        """
+        Rotate the conversation file by archiving it with a timestamp.
+
+        The current conversation file is renamed to include a timestamp suffix.
+        This is an atomic operation using Path.rename().
+
+        Returns:
+            Path to the archived file as a string
+
+        Raises:
+            OSError: If file rotation fails
+
+        Example:
+            >>> archive_path = await conv.rotate()
+            >>> print(f"Archived to: {archive_path}")
+            Archived to: conversation.2025-10-25T18-30-00-123456.jsonl
 
         Note:
-            This is a placeholder for Story 3.1.3 implementation.
+            If the conversation file doesn't exist, this method does nothing
+            and returns an empty string.
         """
-        raise NotImplementedError("rotate() will be implemented in Story 3.1.3")
+        async with self._lock:
+            return await self._rotate_unlocked()
+
+    def get_archive_files(self) -> list[Path]:
+        """
+        Get list of all archived (rotated) conversation files.
+
+        Archives are identified by the timestamp pattern in their filename.
+        Returns files sorted by timestamp (oldest first).
+
+        Returns:
+            List of Path objects for archived files, sorted chronologically
+
+        Example:
+            >>> archives = conv.get_archive_files()
+            >>> for archive in archives:
+            ...     print(archive.name)
+            conversation.2025-10-25T12-00-00-123456.jsonl
+            conversation.2025-10-25T18-00-00-789012.jsonl
+        """
+        if not self.file_path.parent.exists():
+            return []
+
+        # Pattern: {stem}.YYYY-MM-DDTHH-MM-SS-mmmmmm.jsonl
+        stem = self.file_path.stem
+        pattern = f"{stem}.????-??-??T??-??-??-??????.jsonl"
+
+        # Find all matching archive files
+        archive_files = sorted(self.file_path.parent.glob(pattern))
+
+        logger.debug(f"Found {len(archive_files)} archive files for {self.file_path}")
+        return archive_files
+
+    async def read_with_archives(
+        self,
+        since: datetime | None = None,
+        limit: int | None = None,
+    ) -> list[Message]:
+        """
+        Read messages from current file and all archived files.
+
+        This method reads from the current conversation file plus all rotated
+        archives, merging them into a single chronological list.
+
+        Args:
+            since: Only return messages after this timestamp (exclusive)
+            limit: Maximum number of messages to return (most recent if specified)
+
+        Returns:
+            List of Message objects from all files, sorted by timestamp
+
+        Example:
+            >>> # Read all messages across all rotated files
+            >>> all_messages = await conv.read_with_archives()
+            >>>
+            >>> # Read recent messages across all files
+            >>> recent = await conv.read_with_archives(limit=50)
+
+        Raises:
+            OSError: If file read operations fail
+        """
+        all_messages: list[Message] = []
+
+        # Read from all archive files (oldest first)
+        archive_files = self.get_archive_files()
+        for archive_path in archive_files:
+            # Temporarily create ConversationFile for each archive
+            archive_conv = ConversationFile(str(archive_path), max_size_mb=self.max_size_mb)
+            messages = await archive_conv.read(since=since)
+            all_messages.extend(messages)
+
+        # Read from current file
+        current_messages = await self.read(since=since)
+        all_messages.extend(current_messages)
+
+        # Messages should already be in chronological order since we read
+        # archives oldest-first, but verify by sorting
+        all_messages.sort(key=lambda m: m.timestamp)
+
+        # Apply limit if specified (return most recent N)
+        if limit is not None and limit > 0:
+            all_messages = all_messages[-limit:]
+
+        logger.debug(
+            f"Read {len(all_messages)} messages total from {len(archive_files) + 1} files "
+            f"(since={since}, limit={limit})"
+        )
+
+        return all_messages

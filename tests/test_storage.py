@@ -674,3 +674,284 @@ class TestConversationFileRead:
         # Verify timestamps are in order
         for i in range(4):
             assert messages[i].timestamp < messages[i + 1].timestamp
+
+
+class TestConversationFileRotation:
+    """Tests for ConversationFile rotation functionality."""
+
+    @pytest.mark.asyncio
+    async def test_rotate_nonexistent_file(self, tmp_path: Path) -> None:
+        """Test rotating non-existent file returns empty string."""
+        file_path = tmp_path / "conversation.jsonl"
+        conv = ConversationFile(str(file_path))
+
+        archive_path = await conv.rotate()
+        assert archive_path == ""
+
+    @pytest.mark.asyncio
+    async def test_rotate_creates_archive(self, tmp_path: Path) -> None:
+        """Test that rotate creates an archive file."""
+        file_path = tmp_path / "conversation.jsonl"
+        conv = ConversationFile(str(file_path))
+
+        # Append a message
+        msg = Message(from_node="a", to_node="b", content="Test")
+        await conv.append(msg)
+
+        # Rotate
+        archive_path = await conv.rotate()
+
+        # Verify archive was created
+        assert archive_path != ""
+        assert Path(archive_path).exists()
+        assert not file_path.exists()  # Original file should be gone
+
+        # Verify archive filename format
+        archive_name = Path(archive_path).name
+        assert archive_name.startswith("conversation.")
+        assert archive_name.endswith(".jsonl")
+        assert ".jsonl" in archive_name  # Has timestamp
+
+    @pytest.mark.asyncio
+    async def test_rotate_preserves_content(self, tmp_path: Path) -> None:
+        """Test that rotation preserves file content."""
+        file_path = tmp_path / "conversation.jsonl"
+        conv = ConversationFile(str(file_path))
+
+        # Append messages
+        messages = [
+            Message(from_node="a", to_node="b", content="Message 1"),
+            Message(from_node="b", to_node="a", content="Message 2"),
+        ]
+        for msg in messages:
+            await conv.append(msg)
+
+        # Rotate
+        archive_path = await conv.rotate()
+
+        # Read from archive
+        archive_conv = ConversationFile(archive_path)
+        archived_messages = await archive_conv.read()
+
+        # Verify content preserved
+        assert len(archived_messages) == 2
+        assert archived_messages[0].content == "Message 1"
+        assert archived_messages[1].content == "Message 2"
+
+    @pytest.mark.asyncio
+    async def test_get_archive_files_empty(self, tmp_path: Path) -> None:
+        """Test get_archive_files returns empty list when no archives."""
+        file_path = tmp_path / "conversation.jsonl"
+        conv = ConversationFile(str(file_path))
+
+        archives = conv.get_archive_files()
+        assert archives == []
+
+    @pytest.mark.asyncio
+    async def test_get_archive_files_single_archive(self, tmp_path: Path) -> None:
+        """Test get_archive_files finds a single archive."""
+        file_path = tmp_path / "conversation.jsonl"
+        conv = ConversationFile(str(file_path))
+
+        # Create and rotate
+        msg = Message(from_node="a", to_node="b", content="Test")
+        await conv.append(msg)
+        archive_path = await conv.rotate()
+
+        # Get archives
+        archives = conv.get_archive_files()
+
+        assert len(archives) == 1
+        assert str(archives[0]) == archive_path
+
+    @pytest.mark.asyncio
+    async def test_get_archive_files_multiple_archives(self, tmp_path: Path) -> None:
+        """Test get_archive_files finds multiple archives in order."""
+        file_path = tmp_path / "conversation.jsonl"
+        conv = ConversationFile(str(file_path))
+
+        # Create multiple rotations
+        archive_paths = []
+        for i in range(3):
+            msg = Message(from_node="a", to_node="b", content=f"Msg {i}")
+            await conv.append(msg)
+            archive_path = await conv.rotate()
+            archive_paths.append(archive_path)
+            await asyncio.sleep(0.01)  # Ensure different timestamps
+
+        # Get archives
+        archives = conv.get_archive_files()
+
+        # Should find all 3, sorted chronologically
+        assert len(archives) == 3
+        for i, archive in enumerate(archives):
+            assert str(archive) == archive_paths[i]
+
+    @pytest.mark.asyncio
+    async def test_automatic_rotation_on_append(self, tmp_path: Path) -> None:
+        """Test that append automatically rotates when size threshold exceeded."""
+        file_path = tmp_path / "conversation.jsonl"
+        # Very small threshold (0.001 MB = 1KB)
+        conv = ConversationFile(str(file_path), max_size_mb=0.001)
+
+        # Append enough messages to trigger rotation
+        for i in range(30):
+            msg = Message(
+                from_node="a",
+                to_node="b",
+                content=f"Message {i} with enough content to exceed 1KB threshold eventually",
+            )
+            await conv.append(msg)
+
+        # Should have created at least one archive
+        archives = conv.get_archive_files()
+        assert len(archives) >= 1
+
+        # Current file should exist and have recent messages
+        assert conv.exists()
+
+    @pytest.mark.asyncio
+    async def test_read_with_archives_no_archives(self, tmp_path: Path) -> None:
+        """Test read_with_archives works when no archives exist."""
+        file_path = tmp_path / "conversation.jsonl"
+        conv = ConversationFile(str(file_path))
+
+        # Append messages
+        for i in range(3):
+            msg = Message(from_node="a", to_node="b", content=f"Message {i}")
+            await conv.append(msg)
+
+        # Read with archives
+        messages = await conv.read_with_archives()
+
+        assert len(messages) == 3
+        assert messages[0].content == "Message 0"
+
+    @pytest.mark.asyncio
+    async def test_read_with_archives_single_rotation(self, tmp_path: Path) -> None:
+        """Test read_with_archives reads from archive and current file."""
+        file_path = tmp_path / "conversation.jsonl"
+        conv = ConversationFile(str(file_path))
+
+        # Append messages
+        for i in range(3):
+            msg = Message(from_node="a", to_node="b", content=f"Old message {i}")
+            await conv.append(msg)
+
+        # Rotate
+        await conv.rotate()
+
+        # Append new messages
+        for i in range(2):
+            msg = Message(from_node="a", to_node="b", content=f"New message {i}")
+            await conv.append(msg)
+
+        # Read all with archives
+        all_messages = await conv.read_with_archives()
+
+        # Should get all 5 messages
+        assert len(all_messages) == 5
+        assert all_messages[0].content == "Old message 0"
+        assert all_messages[3].content == "New message 0"
+
+    @pytest.mark.asyncio
+    async def test_read_with_archives_multiple_rotations(self, tmp_path: Path) -> None:
+        """Test read_with_archives across multiple rotated files."""
+        file_path = tmp_path / "conversation.jsonl"
+        conv = ConversationFile(str(file_path))
+
+        # Create 3 rotations with messages
+        for rotation in range(3):
+            for i in range(2):
+                msg = Message(from_node="a", to_node="b", content=f"R{rotation}-M{i}")
+                await conv.append(msg)
+            await conv.rotate()
+            await asyncio.sleep(0.01)  # Ensure different timestamps
+
+        # Add current messages
+        for i in range(2):
+            msg = Message(from_node="a", to_node="b", content=f"Current-M{i}")
+            await conv.append(msg)
+
+        # Read all
+        all_messages = await conv.read_with_archives()
+
+        # Should get all 8 messages (3 rotations * 2 + 2 current)
+        assert len(all_messages) == 8
+        assert all_messages[0].content == "R0-M0"
+        assert all_messages[1].content == "R0-M1"
+        assert all_messages[6].content == "Current-M0"
+
+    @pytest.mark.asyncio
+    async def test_read_with_archives_with_limit(self, tmp_path: Path) -> None:
+        """Test read_with_archives respects limit parameter."""
+        file_path = tmp_path / "conversation.jsonl"
+        conv = ConversationFile(str(file_path))
+
+        # Add 10 messages, rotate, add 10 more
+        for i in range(10):
+            msg = Message(from_node="a", to_node="b", content=f"Old {i}")
+            await conv.append(msg)
+
+        await conv.rotate()
+
+        for i in range(10):
+            msg = Message(from_node="a", to_node="b", content=f"New {i}")
+            await conv.append(msg)
+
+        # Read with limit
+        messages = await conv.read_with_archives(limit=5)
+
+        # Should get last 5 messages
+        assert len(messages) == 5
+        assert all("New" in msg.content for msg in messages)
+        assert messages[0].content == "New 5"
+        assert messages[4].content == "New 9"
+
+    @pytest.mark.asyncio
+    async def test_read_with_archives_chronological_order(self, tmp_path: Path) -> None:
+        """Test read_with_archives returns messages in chronological order."""
+        file_path = tmp_path / "conversation.jsonl"
+        conv = ConversationFile(str(file_path))
+
+        all_timestamps = []
+
+        # Create multiple rotations
+        for rotation in range(3):
+            for i in range(3):
+                msg = Message(from_node="a", to_node="b", content=f"R{rotation}-M{i}")
+                await conv.append(msg)
+                all_timestamps.append(msg.timestamp)
+                await asyncio.sleep(0.01)  # Ensure different timestamps
+            await conv.rotate()
+
+        # Read all
+        messages = await conv.read_with_archives()
+
+        # Verify chronological order
+        for i in range(len(messages) - 1):
+            assert messages[i].timestamp <= messages[i + 1].timestamp
+
+    @pytest.mark.asyncio
+    async def test_rotation_filename_format(self, tmp_path: Path) -> None:
+        """Test that rotated filenames follow expected format."""
+        file_path = tmp_path / "conversation.jsonl"
+        conv = ConversationFile(str(file_path))
+
+        msg = Message(from_node="a", to_node="b", content="Test")
+        await conv.append(msg)
+
+        archive_path = await conv.rotate()
+        archive_name = Path(archive_path).name
+
+        # Format: conversation.YYYY-MM-DDTHH-MM-SS-mmmmmm.jsonl
+        parts = archive_name.split(".")
+        assert len(parts) == 3  # name, timestamp, jsonl
+        assert parts[0] == "conversation"
+        assert parts[2] == "jsonl"
+
+        # Timestamp should match pattern
+        timestamp_part = parts[1]
+        assert len(timestamp_part) == 26  # YYYY-MM-DDTHH-MM-SS-mmmmmm
+        assert timestamp_part[4] == "-"  # Year separator
+        assert timestamp_part[10] == "T"  # Date/time separator
