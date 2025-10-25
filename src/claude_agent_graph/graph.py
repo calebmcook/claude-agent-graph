@@ -8,11 +8,13 @@ and message routing.
 
 import logging
 from collections import defaultdict
-from typing import Any, Optional
+from datetime import datetime
+from typing import Any
 
 import networkx as nx
 
-from .models import Edge, Node, SharedState
+from .backends import FilesystemBackend, StorageBackend
+from .models import Edge, Message, Node
 
 logger = logging.getLogger(__name__)
 
@@ -69,7 +71,8 @@ class AgentGraph:
         name: str,
         max_nodes: int = 10000,
         persistence_enabled: bool = True,
-        topology_constraint: Optional[str] = None,
+        topology_constraint: str | None = None,
+        storage_backend: StorageBackend | None = None,
     ):
         """
         Initialize an AgentGraph.
@@ -80,11 +83,17 @@ class AgentGraph:
             persistence_enabled: Whether to enable persistence
             topology_constraint: Optional topology constraint
                 (e.g., "tree", "dag", "mesh", "chain", "star")
+            storage_backend: Storage backend for conversations (default: FilesystemBackend)
         """
         self.name = name
         self.max_nodes = max_nodes
         self.persistence_enabled = persistence_enabled
         self.topology_constraint = topology_constraint
+
+        # Set up storage backend (default to FilesystemBackend)
+        if storage_backend is None:
+            storage_backend = FilesystemBackend(base_dir=f"./conversations/{name}")
+        self.storage = storage_backend
 
         # Internal data structures
         self._nodes: dict[str, Node] = {}
@@ -94,7 +103,7 @@ class AgentGraph:
         # NetworkX graph for topology operations
         self._nx_graph = nx.DiGraph()
 
-        logger.debug(f"Created AgentGraph '{name}'")
+        logger.debug(f"Created AgentGraph '{name}' with storage backend {type(self.storage).__name__}")
 
     def __repr__(self) -> str:
         """Return string representation of the graph."""
@@ -245,9 +254,7 @@ class AgentGraph:
 
         # Check for duplicate edge
         if edge_id in self._edges:
-            raise DuplicateEdgeError(
-                f"Edge from '{from_node}' to '{to_node}' already exists"
-            )
+            raise DuplicateEdgeError(f"Edge from '{from_node}' to '{to_node}' already exists")
 
         # Check reverse edge for undirected graphs
         if not directed:
@@ -261,17 +268,14 @@ class AgentGraph:
         if self.topology_constraint:
             self._validate_topology_constraint(from_node, to_node, directed)
 
-        # Create edge with conversation file path
-        convo_file = f"conversations/{edge_id}.jsonl"
-        shared_state = SharedState(conversation_file=convo_file)
-
+        # Create edge
         try:
             edge = Edge(
                 edge_id=edge_id,
                 from_node=from_node,
                 to_node=to_node,
                 directed=directed,
-                properties={**properties, "shared_state": shared_state.model_dump()},
+                properties=properties,
             )
         except ValueError as e:
             raise ValueError(f"Edge validation failed: {e}")
@@ -440,8 +444,7 @@ class AgentGraph:
             return True
 
         raise TopologyViolationError(
-            f"Graph topology is '{current_topology}', "
-            f"but '{required_topology}' was required"
+            f"Graph topology is '{current_topology}', " f"but '{required_topology}' was required"
         )
 
     def get_isolated_nodes(self) -> list[str]:
@@ -537,9 +540,8 @@ class AgentGraph:
             for other_node in self._nodes:
                 if other_node == potential_center:
                     continue
-                if (
-                    self._nx_graph.has_edge(potential_center, other_node)
-                    or self._nx_graph.has_edge(other_node, potential_center)
+                if self._nx_graph.has_edge(potential_center, other_node) or self._nx_graph.has_edge(
+                    other_node, potential_center
                 ):
                     connected_count += 1
 
@@ -554,10 +556,7 @@ class AgentGraph:
 
         # Center must have multiple connections (fanout > 1 OR fanin > 1)
         # This distinguishes stars from simple chains
-        if (
-            self._nx_graph.out_degree(center) < 2
-            and self._nx_graph.in_degree(center) < 2
-        ):
+        if self._nx_graph.out_degree(center) < 2 and self._nx_graph.in_degree(center) < 2:
             return False
 
         # Verify no edges between spokes (non-center nodes)
@@ -579,10 +578,7 @@ class AgentGraph:
 
         # All nodes should have in-degree and out-degree of 1
         for node in self._nodes:
-            if (
-                self._nx_graph.in_degree(node) != 1
-                or self._nx_graph.out_degree(node) != 1
-            ):
+            if self._nx_graph.in_degree(node) != 1 or self._nx_graph.out_degree(node) != 1:
                 return False
 
         return True
@@ -640,10 +636,171 @@ class AgentGraph:
 
         elif constraint == "chain":
             # Chain: each node has at most 1 outgoing and 1 incoming
-            if (
-                self._nx_graph.out_degree(from_node) > 0
-                or self._nx_graph.in_degree(to_node) > 0
-            ):
+            if self._nx_graph.out_degree(from_node) > 0 or self._nx_graph.in_degree(to_node) > 0:
                 raise TopologyViolationError(
                     f"Adding edge {from_node} -> {to_node} violates chain constraint"
                 )
+
+    # Message Routing & Delivery Methods
+
+    async def send_message(
+        self,
+        from_node: str,
+        to_node: str,
+        content: str,
+        **metadata: Any,
+    ) -> Message:
+        """
+        Send a message between two nodes.
+
+        Validates that both nodes exist and an edge connects them, then
+        appends the message to the conversation file for that edge.
+
+        Args:
+            from_node: ID of the sending node
+            to_node: ID of the receiving node
+            content: Message content
+            **metadata: Additional metadata for the message
+
+        Returns:
+            The created Message object
+
+        Raises:
+            NodeNotFoundError: If either node doesn't exist
+            EdgeNotFoundError: If no edge connects the nodes
+
+        Example:
+            >>> msg = await graph.send_message(
+            ...     from_node="supervisor",
+            ...     to_node="worker_1",
+            ...     content="Start processing",
+            ...     priority="high"
+            ... )
+        """
+        # Validate nodes exist
+        if from_node not in self._nodes:
+            raise NodeNotFoundError(f"Node '{from_node}' not found")
+        if to_node not in self._nodes:
+            raise NodeNotFoundError(f"Node '{to_node}' not found")
+
+        # Validate edge exists (directed or undirected)
+        edge_id = None
+        directed_edge_id = Edge.generate_edge_id(from_node, to_node, directed=True)
+        undirected_edge_id = Edge.generate_edge_id(from_node, to_node, directed=False)
+
+        if directed_edge_id in self._edges:
+            edge_id = directed_edge_id
+        elif undirected_edge_id in self._edges:
+            edge_id = undirected_edge_id
+        else:
+            # Check reverse direction for undirected
+            reverse_undirected = Edge.generate_edge_id(to_node, from_node, directed=False)
+            if reverse_undirected in self._edges:
+                edge_id = reverse_undirected
+            else:
+                raise EdgeNotFoundError(f"No edge found between '{from_node}' and '{to_node}'")
+
+        # Create message
+        message = Message(
+            from_node=from_node,
+            to_node=to_node,
+            content=content,
+            metadata=metadata if metadata else {},
+        )
+
+        # Append message to storage backend
+        await self.storage.append_message(edge_id, message)
+
+        logger.debug(f"Sent message {message.message_id}: {from_node} -> {to_node}")
+        return message
+
+    async def get_conversation(
+        self,
+        from_node: str,
+        to_node: str,
+        since: datetime | None = None,
+        limit: int | None = None,
+    ) -> list[Message]:
+        """
+        Get conversation history between two nodes.
+
+        Args:
+            from_node: First node ID
+            to_node: Second node ID
+            since: Only return messages after this timestamp
+            limit: Maximum number of messages to return
+
+        Returns:
+            List of Message objects, ordered chronologically
+
+        Raises:
+            NodeNotFoundError: If either node doesn't exist
+            EdgeNotFoundError: If no edge connects the nodes
+
+        Example:
+            >>> # Get all messages
+            >>> messages = await graph.get_conversation("a", "b")
+            >>>
+            >>> # Get recent messages
+            >>> recent = await graph.get_conversation("a", "b", limit=10)
+        """
+        # Validate nodes exist
+        if from_node not in self._nodes:
+            raise NodeNotFoundError(f"Node '{from_node}' not found")
+        if to_node not in self._nodes:
+            raise NodeNotFoundError(f"Node '{to_node}' not found")
+
+        # Find edge ID (try both directions and directed/undirected)
+        edge_id = None
+        for eid, edge in self._edges.items():
+            if (
+                (edge.from_node == from_node and edge.to_node == to_node)
+                or (edge.from_node == to_node and edge.to_node == from_node)
+                or (
+                    not edge.directed
+                    and (
+                        (edge.from_node == from_node and edge.to_node == to_node)
+                        or (edge.from_node == to_node and edge.to_node == from_node)
+                    )
+                )
+            ):
+                edge_id = eid
+                break
+
+        if edge_id is None:
+            raise EdgeNotFoundError(f"No edge found between '{from_node}' and '{to_node}'")
+
+        # Read messages from storage backend
+        messages = await self.storage.read_messages(edge_id, since=since, limit=limit)
+
+        logger.debug(f"Retrieved {len(messages)} messages between {from_node} and {to_node}")
+        return messages
+
+    async def get_recent_messages(
+        self,
+        from_node: str,
+        to_node: str,
+        count: int = 10,
+    ) -> list[Message]:
+        """
+        Get the most recent N messages between two nodes.
+
+        This is a convenience method that calls get_conversation with a limit.
+
+        Args:
+            from_node: First node ID
+            to_node: Second node ID
+            count: Number of recent messages to return (default: 10)
+
+        Returns:
+            List of the most recent Message objects
+
+        Raises:
+            NodeNotFoundError: If either node doesn't exist
+            EdgeNotFoundError: If no edge connects the nodes
+
+        Example:
+            >>> # Get last 5 messages
+            >>> recent = await graph.get_recent_messages("a", "b", count=5)
+        """
+        return await self.get_conversation(from_node, to_node, limit=count)
