@@ -685,63 +685,6 @@ async def dynamic_workflow():
     await graph.save_checkpoint("workflow_complete.pkl")
 ```
 
-## Implementation Phases
-
-### Phase 1: Core Infrastructure (Weeks 1-3)
-- [ ] Basic AgentGraph class
-- [ ] Node and Edge data structures
-- [ ] Filesystem storage backend
-- [ ] Basic message routing
-- [ ] Simple topology validation
-- [ ] Unit tests for core components
-
-### Phase 2: Agent Integration (Weeks 4-5)
-- [ ] claude-agent-sdk integration
-- [ ] ClaudeSDKClient lifecycle management
-- [ ] System prompt injection for control relationships
-- [ ] Async message handling
-- [ ] Error handling and recovery
-
-### Phase 3: State Management (Weeks 6-7)
-- [ ] Conversation file implementation (JSONL)
-- [ ] Thread-safe state access
-- [ ] Message filtering and queries
-- [ ] State synchronization
-- [ ] Log rotation
-
-### Phase 4: Dynamic Operations (Weeks 8-9)
-- [ ] Runtime node addition/removal
-- [ ] Runtime edge modification
-- [ ] System prompt hot-reload
-- [ ] Cascade operations
-- [ ] Transaction logs
-
-### Phase 5: Advanced Features (Weeks 10-11)
-- [ ] Multiple execution modes
-- [ ] Broadcast and multi-hop routing
-- [ ] Priority queues
-- [ ] Graph algorithms (shortest path, etc.)
-- [ ] Performance optimizations
-
-### Phase 6: Persistence & Recovery (Week 12)
-- [ ] Checkpoint save/load
-- [ ] Crash recovery
-- [ ] Multiple storage backends
-- [ ] Migration tools
-
-### Phase 7: Monitoring & Visualization (Week 13)
-- [ ] Metrics collection
-- [ ] Event logging
-- [ ] Graph visualization export
-- [ ] Debugging tools
-
-### Phase 8: Documentation & Polish (Week 14)
-- [ ] API documentation
-- [ ] Usage examples
-- [ ] Tutorial notebooks
-- [ ] Performance benchmarks
-- [ ] Release preparation
-
 ## Dependencies
 
 ### Required
@@ -799,17 +742,6 @@ async def dynamic_workflow():
 4. **Graph Partitioning:** For very large graphs, should we support distributed deployment?
 5. **Real-time Collaboration:** Should agents be able to stream responses to each other?
 6. **Custom Tools:** Should nodes support custom MCP tools specific to their role?
-
-## Future Enhancements
-
-- **Distributed Deployment:** Run graph across multiple machines
-- **GPU Integration:** Support for custom model deployments
-- **Streaming Messages:** Real-time message streaming between agents
-- **Graph Templates:** Pre-built graph topologies for common patterns
-- **Visual Graph Editor:** GUI for designing agent networks
-- **Agent Marketplace:** Share and discover agent templates
-- **Advanced Scheduling:** Complex task scheduling and prioritization
-- **Federation:** Connect multiple independent graphs
 
 ## Success Criteria
 
