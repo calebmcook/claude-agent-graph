@@ -6,6 +6,7 @@ import asyncio
 import json
 from pathlib import Path
 
+import aiofiles
 import pytest
 
 from claude_agent_graph.models import Message, MessageRole
@@ -386,3 +387,290 @@ class TestConversationFileEdgeCases:
         assert len(lines) == 5
         for line in lines:
             json.loads(line)  # Should not raise
+
+
+class TestConversationFileRead:
+    """Tests for ConversationFile.read() method."""
+
+    @pytest.mark.asyncio
+    async def test_read_nonexistent_file(self, tmp_path: Path) -> None:
+        """Test read returns empty list for non-existent file."""
+        file_path = tmp_path / "conversation.jsonl"
+        conv = ConversationFile(str(file_path))
+
+        messages = await conv.read()
+        assert messages == []
+
+    @pytest.mark.asyncio
+    async def test_read_empty_file(self, tmp_path: Path) -> None:
+        """Test read returns empty list for empty file."""
+        file_path = tmp_path / "conversation.jsonl"
+        file_path.touch()  # Create empty file
+        conv = ConversationFile(str(file_path))
+
+        messages = await conv.read()
+        assert messages == []
+
+    @pytest.mark.asyncio
+    async def test_read_all_messages(self, tmp_path: Path) -> None:
+        """Test reading all messages from file."""
+        file_path = tmp_path / "conversation.jsonl"
+        conv = ConversationFile(str(file_path))
+
+        # Append multiple messages
+        test_messages = [
+            Message(from_node="a", to_node="b", content="Message 1"),
+            Message(from_node="b", to_node="a", content="Message 2"),
+            Message(from_node="a", to_node="b", content="Message 3"),
+        ]
+
+        for msg in test_messages:
+            await conv.append(msg)
+
+        # Read all messages
+        read_messages = await conv.read()
+
+        assert len(read_messages) == 3
+        assert read_messages[0].content == "Message 1"
+        assert read_messages[1].content == "Message 2"
+        assert read_messages[2].content == "Message 3"
+
+    @pytest.mark.asyncio
+    async def test_read_preserves_message_properties(self, tmp_path: Path) -> None:
+        """Test that read preserves all message properties."""
+        file_path = tmp_path / "conversation.jsonl"
+        conv = ConversationFile(str(file_path))
+
+        # Create message with all properties
+        original = Message(
+            from_node="agent_a",
+            to_node="agent_b",
+            content="Test message",
+            role=MessageRole.ASSISTANT,
+            metadata={"priority": "high", "task_id": 42},
+        )
+
+        await conv.append(original)
+
+        # Read back
+        messages = await conv.read()
+        assert len(messages) == 1
+
+        restored = messages[0]
+        assert restored.message_id == original.message_id
+        assert restored.from_node == original.from_node
+        assert restored.to_node == original.to_node
+        assert restored.content == original.content
+        assert restored.role == original.role
+        assert restored.metadata == original.metadata
+        # Timestamps should be very close
+        assert abs((restored.timestamp - original.timestamp).total_seconds()) < 0.1
+
+    @pytest.mark.asyncio
+    async def test_read_with_since_filter(self, tmp_path: Path) -> None:
+        """Test filtering messages by timestamp."""
+        file_path = tmp_path / "conversation.jsonl"
+        conv = ConversationFile(str(file_path))
+
+        # Append messages with small delays to ensure different timestamps
+        msg1 = Message(from_node="a", to_node="b", content="Message 1")
+        await conv.append(msg1)
+
+        await asyncio.sleep(0.01)  # Small delay
+
+        msg2 = Message(from_node="a", to_node="b", content="Message 2")
+        await conv.append(msg2)
+
+        await asyncio.sleep(0.01)  # Small delay
+
+        msg3 = Message(from_node="a", to_node="b", content="Message 3")
+        await conv.append(msg3)
+
+        # Read messages since msg1's timestamp
+        messages = await conv.read(since=msg1.timestamp)
+
+        # Should only get msg2 and msg3 (since is exclusive)
+        assert len(messages) == 2
+        assert messages[0].content == "Message 2"
+        assert messages[1].content == "Message 3"
+
+    @pytest.mark.asyncio
+    async def test_read_with_limit(self, tmp_path: Path) -> None:
+        """Test limiting number of messages returned."""
+        file_path = tmp_path / "conversation.jsonl"
+        conv = ConversationFile(str(file_path))
+
+        # Append 10 messages
+        for i in range(10):
+            msg = Message(from_node="a", to_node="b", content=f"Message {i}")
+            await conv.append(msg)
+
+        # Read with limit
+        messages = await conv.read(limit=3)
+
+        # Should get last 3 messages
+        assert len(messages) == 3
+        assert messages[0].content == "Message 7"
+        assert messages[1].content == "Message 8"
+        assert messages[2].content == "Message 9"
+
+    @pytest.mark.asyncio
+    async def test_read_with_limit_greater_than_total(self, tmp_path: Path) -> None:
+        """Test limit greater than total messages returns all."""
+        file_path = tmp_path / "conversation.jsonl"
+        conv = ConversationFile(str(file_path))
+
+        # Append 3 messages
+        for i in range(3):
+            msg = Message(from_node="a", to_node="b", content=f"Message {i}")
+            await conv.append(msg)
+
+        # Read with limit greater than total
+        messages = await conv.read(limit=10)
+
+        # Should get all 3 messages
+        assert len(messages) == 3
+
+    @pytest.mark.asyncio
+    async def test_read_with_since_and_limit(self, tmp_path: Path) -> None:
+        """Test combining since and limit filters."""
+        file_path = tmp_path / "conversation.jsonl"
+        conv = ConversationFile(str(file_path))
+
+        # Append 10 messages with delays
+        messages_sent = []
+        for i in range(10):
+            msg = Message(from_node="a", to_node="b", content=f"Message {i}")
+            await conv.append(msg)
+            messages_sent.append(msg)
+            if i < 9:
+                await asyncio.sleep(0.01)
+
+        # Read messages since message 3, limit to 3
+        since_timestamp = messages_sent[3].timestamp
+        messages = await conv.read(since=since_timestamp, limit=3)
+
+        # Should get messages 7, 8, 9 (last 3 of the 6 messages after msg3)
+        assert len(messages) == 3
+        assert messages[0].content == "Message 7"
+        assert messages[1].content == "Message 8"
+        assert messages[2].content == "Message 9"
+
+    @pytest.mark.asyncio
+    async def test_read_with_malformed_json(self, tmp_path: Path) -> None:
+        """Test that malformed JSON lines are skipped gracefully."""
+        file_path = tmp_path / "conversation.jsonl"
+        conv = ConversationFile(str(file_path))
+
+        # Write valid message
+        msg1 = Message(from_node="a", to_node="b", content="Valid 1")
+        await conv.append(msg1)
+
+        # Manually append malformed JSON
+        async with aiofiles.open(file_path, mode="a") as f:
+            await f.write("{ this is not valid json }\n")
+
+        # Write another valid message
+        msg2 = Message(from_node="a", to_node="b", content="Valid 2")
+        await conv.append(msg2)
+
+        # Read should skip malformed line
+        messages = await conv.read()
+
+        assert len(messages) == 2
+        assert messages[0].content == "Valid 1"
+        assert messages[1].content == "Valid 2"
+
+    @pytest.mark.asyncio
+    async def test_read_with_invalid_message_data(self, tmp_path: Path) -> None:
+        """Test that invalid message data is skipped gracefully."""
+        file_path = tmp_path / "conversation.jsonl"
+        conv = ConversationFile(str(file_path))
+
+        # Write valid message
+        msg1 = Message(from_node="a", to_node="b", content="Valid 1")
+        await conv.append(msg1)
+
+        # Manually append valid JSON but invalid Message data
+        async with aiofiles.open(file_path, mode="a") as f:
+            # Missing required fields
+            await f.write('{"invalid": "data", "missing": "required_fields"}\n')
+
+        # Write another valid message
+        msg2 = Message(from_node="a", to_node="b", content="Valid 2")
+        await conv.append(msg2)
+
+        # Read should skip invalid message data
+        messages = await conv.read()
+
+        assert len(messages) == 2
+        assert messages[0].content == "Valid 1"
+        assert messages[1].content == "Valid 2"
+
+    @pytest.mark.asyncio
+    async def test_read_with_empty_lines(self, tmp_path: Path) -> None:
+        """Test that empty lines are skipped."""
+        file_path = tmp_path / "conversation.jsonl"
+        conv = ConversationFile(str(file_path))
+
+        # Write message
+        msg1 = Message(from_node="a", to_node="b", content="Message 1")
+        await conv.append(msg1)
+
+        # Add empty lines
+        async with aiofiles.open(file_path, mode="a") as f:
+            await f.write("\n")
+            await f.write("   \n")  # Whitespace only
+
+        # Write another message
+        msg2 = Message(from_node="a", to_node="b", content="Message 2")
+        await conv.append(msg2)
+
+        # Read should skip empty lines
+        messages = await conv.read()
+
+        assert len(messages) == 2
+        assert messages[0].content == "Message 1"
+        assert messages[1].content == "Message 2"
+
+    @pytest.mark.asyncio
+    async def test_read_with_unicode_content(self, tmp_path: Path) -> None:
+        """Test reading messages with Unicode content."""
+        file_path = tmp_path / "conversation.jsonl"
+        conv = ConversationFile(str(file_path))
+
+        # Write message with Unicode
+        msg = Message(
+            from_node="a",
+            to_node="b",
+            content="Hello 世界 🌍 émojis",
+        )
+        await conv.append(msg)
+
+        # Read and verify Unicode is preserved
+        messages = await conv.read()
+        assert len(messages) == 1
+        assert messages[0].content == "Hello 世界 🌍 émojis"
+
+    @pytest.mark.asyncio
+    async def test_read_preserves_message_order(self, tmp_path: Path) -> None:
+        """Test that messages are returned in chronological order."""
+        file_path = tmp_path / "conversation.jsonl"
+        conv = ConversationFile(str(file_path))
+
+        # Append messages
+        for i in range(5):
+            msg = Message(from_node="a", to_node="b", content=f"Message {i}")
+            await conv.append(msg)
+            await asyncio.sleep(0.01)  # Ensure different timestamps
+
+        # Read all
+        messages = await conv.read()
+
+        # Verify order
+        for i in range(5):
+            assert messages[i].content == f"Message {i}"
+
+        # Verify timestamps are in order
+        for i in range(4):
+            assert messages[i].timestamp < messages[i + 1].timestamp

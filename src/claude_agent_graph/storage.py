@@ -8,7 +8,7 @@ JSONL format persistence, and automatic log rotation.
 import asyncio
 import json
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 
 import aiofiles
@@ -164,19 +164,95 @@ class ConversationFile:
         limit: int | None = None,
     ) -> list[Message]:
         """
-        Read messages from the conversation file (to be implemented in Story 3.1.2).
+        Read messages from the conversation file with optional filtering.
+
+        Messages are parsed from JSONL format and returned as Message objects.
+        Malformed lines are logged as warnings and skipped gracefully.
 
         Args:
-            since: Only return messages after this timestamp
-            limit: Maximum number of messages to return
+            since: Only return messages after this timestamp (exclusive)
+            limit: Maximum number of messages to return (most recent if specified)
 
         Returns:
-            List of Message objects
+            List of Message objects, ordered by timestamp (oldest first)
+            Returns empty list if file doesn't exist
 
-        Note:
-            This is a placeholder for Story 3.1.2 implementation.
+        Example:
+            >>> # Read all messages
+            >>> messages = await conv.read()
+            >>>
+            >>> # Read messages since a specific time
+            >>> since_time = datetime(2025, 10, 25, 12, 0, 0, tzinfo=timezone.utc)
+            >>> recent = await conv.read(since=since_time)
+            >>>
+            >>> # Read last 10 messages
+            >>> last_ten = await conv.read(limit=10)
+
+        Raises:
+            OSError: If file read operation fails
         """
-        raise NotImplementedError("read() will be implemented in Story 3.1.2")
+        # Return empty list if file doesn't exist
+        if not self.file_path.exists():
+            logger.debug(f"Conversation file does not exist: {self.file_path}")
+            return []
+
+        messages: list[Message] = []
+        line_number = 0
+
+        try:
+            async with aiofiles.open(self.file_path, encoding="utf-8") as f:
+                async for line in f:
+                    line_number += 1
+                    line = line.strip()
+
+                    # Skip empty lines
+                    if not line:
+                        continue
+
+                    try:
+                        # Parse JSON line
+                        data = json.loads(line)
+
+                        # Convert to Message object
+                        message = Message.from_dict(data)
+
+                        # Filter by timestamp if specified
+                        if since is not None:
+                            # Ensure since has timezone info for comparison
+                            if since.tzinfo is None:
+                                since = since.replace(tzinfo=timezone.utc)
+
+                            if message.timestamp <= since:
+                                continue  # Skip messages at or before 'since'
+
+                        # Add to results
+                        messages.append(message)
+
+                    except json.JSONDecodeError as e:
+                        logger.warning(
+                            f"Malformed JSON at line {line_number} in {self.file_path}: {e}"
+                        )
+                        continue  # Skip malformed line
+                    except (ValueError, TypeError, KeyError) as e:
+                        logger.warning(
+                            f"Invalid message data at line {line_number} in {self.file_path}: {e}"
+                        )
+                        continue  # Skip invalid message data
+
+            logger.debug(
+                f"Read {len(messages)} messages from {self.file_path} "
+                f"(since={since}, limit={limit})"
+            )
+
+        except OSError as e:
+            logger.error(f"Failed to read from {self.file_path}: {e}")
+            raise OSError(f"Failed to read conversation file: {e}") from e
+
+        # Apply limit if specified (return most recent N messages)
+        if limit is not None and limit > 0:
+            messages = messages[-limit:]
+
+        return messages
 
     async def rotate(self) -> str:
         """
