@@ -474,6 +474,8 @@ Epic 1 (Foundation) → Epic 2 (Graph Construction) → Epic 3 (State Management
 
 **Estimated Effort:** 4-5 days
 
+> **Detailed Plan:** See [EPIC_4_IMPLEMENTATION.md](EPIC_4_IMPLEMENTATION.md) for comprehensive implementation strategy, architecture decisions, and detailed acceptance criteria.
+
 ### Feature 4.1: Agent Session Management
 
 #### Story 4.1.1: Initialize ClaudeSDKClient for Nodes
