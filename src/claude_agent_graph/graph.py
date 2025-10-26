@@ -1297,3 +1297,187 @@ Follow directives from your controllers while maintaining your specialized role.
 
         logger.debug(f"Updated node '{node_id}'")
 
+    # ==================== Dynamic Edge Operations (Epic 5) ====================
+
+    async def remove_edge(
+        self,
+        from_node: str,
+        to_node: str,
+    ) -> None:
+        """
+        Remove an edge between two nodes.
+
+        Removes an edge (directed or undirected) and archives the associated
+        conversation file. Updates control relationships by marking subordinate
+        prompts as dirty if the edge was a directed control relationship.
+
+        Args:
+            from_node: Source node ID
+            to_node: Target node ID
+
+        Raises:
+            NodeNotFoundError: If either node doesn't exist
+            EdgeNotFoundError: If edge doesn't exist
+
+        Example:
+            >>> # Remove directed edge
+            >>> await graph.remove_edge("supervisor", "worker_1")
+            >>>
+            >>> # Remove undirected edge
+            >>> await graph.remove_edge("peer_a", "peer_b")
+        """
+        async with self._modification_lock:
+            # Validate nodes exist
+            if from_node not in self._nodes:
+                raise NodeNotFoundError(f"Node '{from_node}' not found")
+            if to_node not in self._nodes:
+                raise NodeNotFoundError(f"Node '{to_node}' not found")
+
+            # Try to find the edge (directed or undirected)
+            directed_edge_id = Edge.generate_edge_id(from_node, to_node, directed=True)
+            undirected_edge_id = Edge.generate_edge_id(from_node, to_node, directed=False)
+            reverse_undirected_id = Edge.generate_edge_id(to_node, from_node, directed=False)
+
+            edge_id = None
+            edge = None
+
+            if directed_edge_id in self._edges:
+                edge_id = directed_edge_id
+                edge = self._edges[edge_id]
+            elif undirected_edge_id in self._edges:
+                edge_id = undirected_edge_id
+                edge = self._edges[edge_id]
+            elif reverse_undirected_id in self._edges:
+                edge_id = reverse_undirected_id
+                edge = self._edges[edge_id]
+            else:
+                raise EdgeNotFoundError(f"Edge from '{from_node}' to '{to_node}' not found")
+
+            # Archive conversation file
+            try:
+                await self._archive_edge_conversation(edge_id)
+            except Exception as e:
+                logger.warning(f"Error archiving conversation for edge '{edge_id}': {e}")
+
+            # Update control relationships if directed edge
+            if edge.directed and edge.to_node == to_node:
+                # Mark subordinate's prompt dirty (controller removed)
+                subordinate = self._nodes.get(to_node)
+                if subordinate:
+                    subordinate.prompt_dirty = True
+                    logger.debug(
+                        f"Marked subordinate '{to_node}' prompt dirty "
+                        f"(lost controller '{from_node}')"
+                    )
+
+            # Remove edge from all structures
+            self._edges.pop(edge_id, None)
+
+            # Clean up adjacency
+            if edge.from_node in self._adjacency:
+                try:
+                    self._adjacency[edge.from_node].remove(edge.to_node)
+                except ValueError:
+                    pass
+
+            if not edge.directed:
+                # Undirected: clean reverse adjacency
+                if edge.to_node in self._adjacency:
+                    try:
+                        self._adjacency[edge.to_node].remove(edge.from_node)
+                    except ValueError:
+                        pass
+
+            # Remove from NetworkX graph
+            try:
+                self._nx_graph.remove_edge(edge.from_node, edge.to_node)
+            except nx.NetworkXError:
+                pass
+
+            if not edge.directed:
+                # Try removing reverse direction
+                try:
+                    self._nx_graph.remove_edge(edge.to_node, edge.from_node)
+                except nx.NetworkXError:
+                    pass
+
+            logger.info(f"Removed edge from '{from_node}' to '{to_node}' (archived conversation)")
+
+    def update_edge(
+        self,
+        from_node: str,
+        to_node: str,
+        **properties: Any,
+    ) -> None:
+        """
+        Update edge properties.
+
+        Merges new properties with existing edge properties. If control_type
+        changes, marks subordinate's prompt as dirty to trigger recomputation.
+
+        Args:
+            from_node: Source node ID
+            to_node: Target node ID
+            **properties: Properties to merge into edge.properties
+
+        Raises:
+            NodeNotFoundError: If either node doesn't exist
+            EdgeNotFoundError: If edge doesn't exist
+
+        Example:
+            >>> # Update control type
+            >>> graph.update_edge("cfo", "analyst",
+            ...     control_type="oversight", priority="high")
+            >>>
+            >>> # Add custom metadata
+            >>> graph.update_edge("peer_a", "peer_b",
+            ...     collaboration_level="high")
+        """
+        # Validate nodes exist
+        if from_node not in self._nodes:
+            raise NodeNotFoundError(f"Node '{from_node}' not found")
+        if to_node not in self._nodes:
+            raise NodeNotFoundError(f"Node '{to_node}' not found")
+
+        # Find edge
+        directed_edge_id = Edge.generate_edge_id(from_node, to_node, directed=True)
+        undirected_edge_id = Edge.generate_edge_id(from_node, to_node, directed=False)
+        reverse_undirected_id = Edge.generate_edge_id(to_node, from_node, directed=False)
+
+        edge_id = None
+        if directed_edge_id in self._edges:
+            edge_id = directed_edge_id
+        elif undirected_edge_id in self._edges:
+            edge_id = undirected_edge_id
+        elif reverse_undirected_id in self._edges:
+            edge_id = reverse_undirected_id
+        else:
+            raise EdgeNotFoundError(f"Edge from '{from_node}' to '{to_node}' not found")
+
+        edge = self._edges[edge_id]
+
+        # Check if control_type is changing (only matters for directed edges)
+        old_control_type = edge.properties.get("control_type")
+        new_control_type = properties.get("control_type")
+        control_type_changed = (
+            edge.directed and
+            new_control_type is not None and
+            old_control_type != new_control_type
+        )
+
+        # Merge properties
+        edge.properties.update(properties)
+
+        # Mark subordinate's prompt dirty if control type changed
+        if control_type_changed:
+            subordinate = self._nodes.get(edge.to_node)
+            if subordinate:
+                subordinate.prompt_dirty = True
+                logger.debug(
+                    f"Marked subordinate '{edge.to_node}' prompt dirty "
+                    f"(control_type changed from '{old_control_type}' to '{new_control_type}')"
+                )
+
+        logger.info(f"Updated edge from '{from_node}' to '{to_node}' properties")
+        logger.debug(f"Edge properties: {edge.properties}")
+

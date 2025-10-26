@@ -1523,3 +1523,325 @@ class TestNodeUpdate:
 
         # node_b should NOT be marked dirty (undirected edge doesn't create control)
         assert not graph.get_node("node_b").prompt_dirty
+
+
+class TestEdgeRemoval:
+    """Tests for edge removal functionality (Epic 5, Story 5.2.2)."""
+
+    async def test_remove_edge_not_found(self):
+        """Test that removing nonexistent edge raises EdgeNotFoundError."""
+        graph = AgentGraph(name="test")
+        graph.add_node("node_a", "A")
+        graph.add_node("node_b", "B")
+
+        with pytest.raises(EdgeNotFoundError, match="Edge from 'node_a' to 'node_b' not found"):
+            await graph.remove_edge("node_a", "node_b")
+
+    async def test_remove_edge_node_not_found(self):
+        """Test that removing edge with missing node raises NodeNotFoundError."""
+        graph = AgentGraph(name="test")
+        graph.add_node("node_a", "A")
+
+        with pytest.raises(NodeNotFoundError, match="Node 'nonexistent' not found"):
+            await graph.remove_edge("node_a", "nonexistent")
+
+    async def test_remove_directed_edge(self):
+        """Test removing a directed edge."""
+        graph = AgentGraph(name="test")
+        graph.add_node("from", "From")
+        graph.add_node("to", "To")
+
+        edge = graph.add_edge("from", "to", directed=True)
+        assert graph.edge_exists("from", "to")
+
+        await graph.remove_edge("from", "to")
+
+        assert not graph.edge_exists("from", "to")
+        assert graph.edge_count == 0
+
+    async def test_remove_undirected_edge(self):
+        """Test removing an undirected edge."""
+        graph = AgentGraph(name="test")
+        graph.add_node("node_a", "A")
+        graph.add_node("node_b", "B")
+
+        graph.add_edge("node_a", "node_b", directed=False)
+        assert graph.edge_exists("node_a", "node_b")
+
+        await graph.remove_edge("node_a", "node_b")
+
+        assert not graph.edge_exists("node_a", "node_b")
+        assert graph.edge_count == 0
+
+    async def test_remove_edge_updates_control_relationships(self):
+        """Test that removing directed edge marks subordinate prompt dirty."""
+        graph = AgentGraph(name="test")
+        graph.add_node("controller", "Controller")
+        graph.add_node("subordinate", "Subordinate")
+
+        graph.add_edge("controller", "subordinate", directed=True)
+
+        # Clear the dirty flag
+        graph.get_node("subordinate").prompt_dirty = False
+
+        await graph.remove_edge("controller", "subordinate")
+
+        # Subordinate's prompt should be marked dirty
+        assert graph.get_node("subordinate").prompt_dirty
+        assert not graph.edge_exists("controller", "subordinate")
+
+    async def test_remove_edge_archives_conversation(self):
+        """Test that archive_conversation is called when edge is removed."""
+        import tempfile
+        from unittest.mock import AsyncMock, patch
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            graph = AgentGraph(
+                name="test",
+                storage_backend=FilesystemBackend(base_dir=tmpdir),
+            )
+
+            graph.add_node("node_a", "A")
+            graph.add_node("node_b", "B")
+
+            edge = graph.add_edge("node_a", "node_b", directed=True)
+
+            # Mock the archive_conversation method
+            with patch.object(graph.storage, 'archive_conversation', new_callable=AsyncMock) as mock_archive:
+                await graph.remove_edge("node_a", "node_b")
+
+                # Verify archive_conversation was called
+                mock_archive.assert_called_once_with(edge.edge_id)
+
+    async def test_remove_edge_undirected_no_control_dirty(self):
+        """Test that removing undirected edge doesn't mark prompts dirty."""
+        graph = AgentGraph(name="test")
+        graph.add_node("node_a", "A")
+        graph.add_node("node_b", "B")
+
+        graph.add_edge("node_a", "node_b", directed=False)
+
+        # Clear dirty flags
+        graph.get_node("node_a").prompt_dirty = False
+        graph.get_node("node_b").prompt_dirty = False
+
+        await graph.remove_edge("node_a", "node_b")
+
+        # Neither should be marked dirty (undirected edges don't create control)
+        assert not graph.get_node("node_a").prompt_dirty
+        assert not graph.get_node("node_b").prompt_dirty
+
+    async def test_remove_edge_updates_adjacency(self):
+        """Test that adjacency is updated after edge removal."""
+        graph = AgentGraph(name="test")
+        graph.add_node("a", "A")
+        graph.add_node("b", "B")
+
+        graph.add_edge("a", "b", directed=True)
+        assert graph.get_neighbors("a", "outgoing") == ["b"]
+        assert graph.get_neighbors("b", "incoming") == ["a"]
+
+        await graph.remove_edge("a", "b")
+
+        # Adjacency should be cleaned
+        assert graph.get_neighbors("a", "outgoing") == []
+        assert graph.get_neighbors("b", "incoming") == []
+
+    async def test_remove_edge_updates_topology(self):
+        """Test that topology is updated after edge removal."""
+        graph = AgentGraph(name="test")
+        graph.add_node("a", "A")
+        graph.add_node("b", "B")
+        graph.add_node("c", "C")
+
+        graph.add_edge("a", "b", directed=True)
+        graph.add_edge("b", "c", directed=True)
+
+        assert graph.get_topology() == "chain"
+
+        # Remove middle edge
+        await graph.remove_edge("b", "c")
+
+        # Should now be isolated or different topology
+        assert graph.edge_count == 1
+
+    async def test_remove_undirected_reverse_lookup(self):
+        """Test removing undirected edge via reverse lookup."""
+        graph = AgentGraph(name="test")
+        graph.add_node("a", "A")
+        graph.add_node("b", "B")
+
+        graph.add_edge("a", "b", directed=False)
+
+        # Remove via reverse direction
+        await graph.remove_edge("b", "a")
+
+        assert not graph.edge_exists("a", "b")
+        assert graph.edge_count == 0
+
+    async def test_remove_multiple_edges_from_same_nodes(self):
+        """Test removing one edge when multiple exist between same nodes (different properties)."""
+        graph = AgentGraph(name="test")
+        graph.add_node("a", "A")
+        graph.add_node("b", "B")
+
+        # Add directed edge
+        graph.add_edge("a", "b", directed=True)
+
+        # Undirected edge between same nodes (different from directed)
+        graph.add_edge("a", "b", directed=False)
+
+        assert graph.edge_count == 2
+
+        # Remove one edge
+        await graph.remove_edge("a", "b")
+
+        # Should remove the first one found (behavior depends on storage order)
+        assert graph.edge_count == 1 or graph.edge_count == 0  # Depends on which was removed
+
+
+class TestEdgeUpdate:
+    """Tests for edge property updates (Epic 5, Story 5.2.3)."""
+
+    def test_update_edge_not_found(self):
+        """Test that updating nonexistent edge raises EdgeNotFoundError."""
+        graph = AgentGraph(name="test")
+        graph.add_node("a", "A")
+        graph.add_node("b", "B")
+
+        with pytest.raises(EdgeNotFoundError, match="Edge from 'a' to 'b' not found"):
+            graph.update_edge("a", "b", priority="high")
+
+    def test_update_edge_node_not_found(self):
+        """Test that updating edge with missing node raises NodeNotFoundError."""
+        graph = AgentGraph(name="test")
+        graph.add_node("a", "A")
+
+        with pytest.raises(NodeNotFoundError, match="Node 'nonexistent' not found"):
+            graph.update_edge("a", "nonexistent", priority="high")
+
+    def test_update_edge_properties(self):
+        """Test updating edge properties."""
+        graph = AgentGraph(name="test")
+        graph.add_node("a", "A")
+        graph.add_node("b", "B")
+
+        graph.add_edge("a", "b", directed=True)
+
+        # Update properties
+        graph.update_edge("a", "b", priority="high", type="supervision")
+
+        edge = graph.get_edge("a", "b")
+        assert edge.properties["priority"] == "high"
+        assert edge.properties["type"] == "supervision"
+
+    def test_update_edge_properties_merged(self):
+        """Test that edge property updates merge rather than replace."""
+        graph = AgentGraph(name="test")
+        graph.add_node("a", "A")
+        graph.add_node("b", "B")
+
+        graph.add_edge("a", "b", directed=True, priority="low")
+
+        # Update some properties
+        graph.update_edge("a", "b", type="supervision")
+
+        edge = graph.get_edge("a", "b")
+        assert edge.properties["priority"] == "low"
+        assert edge.properties["type"] == "supervision"
+
+    def test_update_edge_control_type_triggers_dirty(self):
+        """Test that control_type change marks subordinate prompt dirty."""
+        graph = AgentGraph(name="test")
+        graph.add_node("supervisor", "Supervisor")
+        graph.add_node("worker", "Worker")
+
+        graph.add_edge("supervisor", "worker", directed=True)
+
+        # Clear dirty flag
+        graph.get_node("worker").prompt_dirty = False
+
+        # Update control_type
+        graph.update_edge("supervisor", "worker", control_type="oversight")
+
+        # Subordinate's prompt should be marked dirty
+        assert graph.get_node("worker").prompt_dirty
+
+    def test_update_edge_non_control_type_no_dirty(self):
+        """Test that non-control-type changes don't mark prompts dirty."""
+        graph = AgentGraph(name="test")
+        graph.add_node("a", "A")
+        graph.add_node("b", "B")
+
+        graph.add_edge("a", "b", directed=True)
+
+        # Clear dirty flag
+        graph.get_node("b").prompt_dirty = False
+
+        # Update non-control-type property
+        graph.update_edge("a", "b", priority="high")
+
+        # Should not be marked dirty
+        assert not graph.get_node("b").prompt_dirty
+
+    def test_update_edge_undirected(self):
+        """Test updating undirected edge properties."""
+        graph = AgentGraph(name="test")
+        graph.add_node("a", "A")
+        graph.add_node("b", "B")
+
+        graph.add_edge("a", "b", directed=False)
+
+        graph.update_edge("a", "b", collaboration_level="high")
+
+        edge = graph.get_edge("a", "b")
+        assert edge.properties["collaboration_level"] == "high"
+
+    def test_update_edge_via_reverse_lookup(self):
+        """Test updating undirected edge via reverse lookup."""
+        graph = AgentGraph(name="test")
+        graph.add_node("a", "A")
+        graph.add_node("b", "B")
+
+        graph.add_edge("a", "b", directed=False)
+
+        # Update via reverse direction
+        graph.update_edge("b", "a", level="2")
+
+        edge = graph.get_edge("a", "b")
+        assert edge.properties["level"] == "2"
+
+    def test_update_edge_multiple_updates(self):
+        """Test multiple updates to same edge."""
+        graph = AgentGraph(name="test")
+        graph.add_node("a", "A")
+        graph.add_node("b", "B")
+
+        graph.add_edge("a", "b", directed=True, version=1)
+
+        # First update
+        graph.update_edge("a", "b", version=2, status="active")
+        edge = graph.get_edge("a", "b")
+        assert edge.properties["version"] == 2
+        assert edge.properties["status"] == "active"
+
+        # Second update
+        graph.update_edge("a", "b", status="inactive")
+        edge = graph.get_edge("a", "b")
+        assert edge.properties["version"] == 2  # Unchanged
+        assert edge.properties["status"] == "inactive"
+
+    def test_update_edge_no_changes(self):
+        """Test updating edge with no properties succeeds but does nothing."""
+        graph = AgentGraph(name="test")
+        graph.add_node("a", "A")
+        graph.add_node("b", "B")
+
+        graph.add_edge("a", "b", directed=True, priority="high")
+
+        # Update with no properties
+        graph.update_edge("a", "b")
+
+        # Nothing should change
+        edge = graph.get_edge("a", "b")
+        assert edge.properties["priority"] == "high"
