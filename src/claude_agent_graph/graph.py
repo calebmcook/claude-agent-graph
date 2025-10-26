@@ -6,6 +6,7 @@ topology validation, and dynamic modifications. It coordinates node/edge lifecyc
 and message routing.
 """
 
+import asyncio
 import logging
 from collections import defaultdict
 from datetime import datetime
@@ -83,6 +84,9 @@ class AgentGraph:
 
         # Agent session manager (Epic 4)
         self._agent_manager = AgentSessionManager(self)
+
+        # Lock for thread-safe concurrent modifications (Epic 5)
+        self._modification_lock = asyncio.Lock()
 
         logger.debug(f"Created AgentGraph '{name}' with storage backend {type(self.storage).__name__}")
 
@@ -1084,3 +1088,396 @@ Follow directives from your controllers while maintaining your specialized role.
             "error_count": node.metadata.get("error_count", 0),
             "created_at": node.created_at.isoformat(),
         }
+
+    # ==================== Dynamic Node Operations (Epic 5) ====================
+
+    async def remove_node(
+        self,
+        node_id: str,
+        cascade: bool = True,
+    ) -> None:
+        """
+        Remove a node from the graph.
+
+        Removes a node and optionally all connected edges. Stops the agent session
+        gracefully and archives conversation files. Updates control relationships
+        for affected nodes by marking their prompts as dirty.
+
+        Args:
+            node_id: ID of the node to remove
+            cascade: If True, remove all associated edges automatically.
+                    If False, raise error if edges exist (default: True)
+
+        Raises:
+            NodeNotFoundError: If node doesn't exist
+            AgentGraphError: If edges exist and cascade=False
+
+        Example:
+            >>> # Remove node and all connected edges
+            >>> await graph.remove_node("worker_1", cascade=True)
+            >>>
+            >>> # Remove only if isolated (no edges)
+            >>> await graph.remove_node("worker_1", cascade=False)
+        """
+        async with self._modification_lock:
+            # Validate node exists
+            if node_id not in self._nodes:
+                raise NodeNotFoundError(f"Node '{node_id}' not found")
+
+            # Check for edges if cascade=False
+            if not cascade:
+                # Get all connected edges
+                connected_edges = [
+                    edge for edge in self._edges.values()
+                    if edge.from_node == node_id or edge.to_node == node_id
+                ]
+                if connected_edges:
+                    edge_ids = [edge.edge_id for edge in connected_edges]
+                    raise AgentGraphError(
+                        f"Cannot remove node '{node_id}': has {len(connected_edges)} connected edge(s). "
+                        f"Set cascade=True to remove edges, or remove them manually. "
+                        f"Edges: {', '.join(edge_ids)}"
+                    )
+
+            # Collect edges to remove if cascade=True
+            edges_to_remove = []
+            if cascade:
+                edges_to_remove = [
+                    edge for edge in list(self._edges.values())
+                    if edge.from_node == node_id or edge.to_node == node_id
+                ]
+
+            # Stop agent session gracefully
+            try:
+                if self._agent_manager.is_running(node_id):
+                    await self._agent_manager.stop_agent(node_id)
+                    logger.info(f"Stopped agent session for node '{node_id}'")
+            except Exception as e:
+                logger.warning(f"Error stopping agent '{node_id}': {e}")
+                # Continue with removal even if stop fails
+
+            # Archive conversation files and remove edges
+            for edge in edges_to_remove:
+                try:
+                    await self._archive_edge_conversation(edge.edge_id)
+                except Exception as e:
+                    logger.warning(f"Error archiving conversation for edge '{edge.edge_id}': {e}")
+
+                # Update control relationships
+                if edge.from_node == node_id:
+                    # This node was a controller; mark subordinate's prompt dirty
+                    subordinate = self._nodes.get(edge.to_node)
+                    if subordinate:
+                        subordinate.prompt_dirty = True
+                        logger.debug(
+                            f"Marked subordinate '{edge.to_node}' prompt dirty "
+                            f"(lost controller '{node_id}')"
+                        )
+                elif edge.to_node == node_id:
+                    # This node was controlled; mark controller affected
+                    # (but they don't need prompt updates; the subordinate does)
+                    pass
+
+                # Remove edge from all structures
+                self._edges.pop(edge.edge_id, None)
+
+                # Clean up adjacency
+                if edge.from_node in self._adjacency:
+                    try:
+                        self._adjacency[edge.from_node].remove(edge.to_node)
+                    except ValueError:
+                        pass
+
+                if not edge.directed:
+                    # Undirected: clean reverse adjacency
+                    if edge.to_node in self._adjacency:
+                        try:
+                            self._adjacency[edge.to_node].remove(edge.from_node)
+                        except ValueError:
+                            pass
+
+                # Remove from NetworkX graph
+                try:
+                    self._nx_graph.remove_edge(edge.from_node, edge.to_node)
+                except nx.NetworkXError:
+                    pass  # Edge might have been removed already
+
+            # Remove node from all structures
+            self._nodes.pop(node_id, None)
+            self._adjacency.pop(node_id, None)
+
+            # Remove from NetworkX graph
+            try:
+                self._nx_graph.remove_node(node_id)
+            except nx.NetworkXError:
+                pass  # Node might have been removed already
+
+            logger.info(
+                f"Removed node '{node_id}' from graph '{self.name}' "
+                f"(cascade={cascade}, removed {len(edges_to_remove)} edges)"
+            )
+
+    async def _archive_edge_conversation(self, edge_id: str) -> None:
+        """
+        Archive the conversation file for an edge.
+
+        Moves the conversation file to the archived/ directory with a timestamp.
+        This preserves the conversation history for audit and debugging.
+
+        Args:
+            edge_id: ID of the edge whose conversation to archive
+        """
+        try:
+            await self.storage.archive_conversation(edge_id)
+            logger.debug(f"Archived conversation for edge '{edge_id}'")
+        except Exception as e:
+            logger.warning(f"Could not archive conversation for edge '{edge_id}': {e}")
+            raise
+
+    def update_node(
+        self,
+        node_id: str,
+        system_prompt: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        """
+        Update node properties at runtime.
+
+        Updates one or more properties of a node. Metadata is merged with existing
+        values (not replaced). If system prompt changes, the prompt_dirty flag is
+        set to trigger recomputation on next agent activation.
+
+        Args:
+            node_id: ID of the node to update
+            system_prompt: New system prompt (optional)
+            metadata: New metadata to merge (optional)
+
+        Raises:
+            NodeNotFoundError: If node doesn't exist
+
+        Example:
+            >>> # Update only system prompt
+            >>> graph.update_node("worker_1",
+            ...     system_prompt="New role description")
+            >>>
+            >>> # Update only metadata
+            >>> graph.update_node("worker_1",
+            ...     metadata={"priority": "high", "team": "alpha"})
+            >>>
+            >>> # Update both
+            >>> graph.update_node("worker_1",
+            ...     system_prompt="New role",
+            ...     metadata={"priority": "high"})
+        """
+        # Validate node exists
+        if node_id not in self._nodes:
+            raise NodeNotFoundError(f"Node '{node_id}' not found")
+
+        node = self._nodes[node_id]
+
+        # Update system prompt if provided
+        if system_prompt is not None:
+            # Store original prompt if not already stored
+            if node.original_system_prompt is None:
+                node.original_system_prompt = node.system_prompt
+
+            # Update prompt
+            node.system_prompt = system_prompt
+            node.prompt_dirty = True
+
+            # Mark subordinates' prompts as dirty (they may need to recompute)
+            self._mark_subordinates_dirty(node_id)
+
+            logger.info(f"Updated system prompt for node '{node_id}'")
+
+        # Update metadata if provided (merge, don't replace)
+        if metadata is not None:
+            node.metadata.update(metadata)
+            logger.info(f"Updated metadata for node '{node_id}'")
+
+        logger.debug(f"Updated node '{node_id}'")
+
+    # ==================== Dynamic Edge Operations (Epic 5) ====================
+
+    async def remove_edge(
+        self,
+        from_node: str,
+        to_node: str,
+    ) -> None:
+        """
+        Remove an edge between two nodes.
+
+        Removes an edge (directed or undirected) and archives the associated
+        conversation file. Updates control relationships by marking subordinate
+        prompts as dirty if the edge was a directed control relationship.
+
+        Args:
+            from_node: Source node ID
+            to_node: Target node ID
+
+        Raises:
+            NodeNotFoundError: If either node doesn't exist
+            EdgeNotFoundError: If edge doesn't exist
+
+        Example:
+            >>> # Remove directed edge
+            >>> await graph.remove_edge("supervisor", "worker_1")
+            >>>
+            >>> # Remove undirected edge
+            >>> await graph.remove_edge("peer_a", "peer_b")
+        """
+        async with self._modification_lock:
+            # Validate nodes exist
+            if from_node not in self._nodes:
+                raise NodeNotFoundError(f"Node '{from_node}' not found")
+            if to_node not in self._nodes:
+                raise NodeNotFoundError(f"Node '{to_node}' not found")
+
+            # Try to find the edge (directed or undirected)
+            directed_edge_id = Edge.generate_edge_id(from_node, to_node, directed=True)
+            undirected_edge_id = Edge.generate_edge_id(from_node, to_node, directed=False)
+            reverse_undirected_id = Edge.generate_edge_id(to_node, from_node, directed=False)
+
+            edge_id = None
+            edge = None
+
+            if directed_edge_id in self._edges:
+                edge_id = directed_edge_id
+                edge = self._edges[edge_id]
+            elif undirected_edge_id in self._edges:
+                edge_id = undirected_edge_id
+                edge = self._edges[edge_id]
+            elif reverse_undirected_id in self._edges:
+                edge_id = reverse_undirected_id
+                edge = self._edges[edge_id]
+            else:
+                raise EdgeNotFoundError(f"Edge from '{from_node}' to '{to_node}' not found")
+
+            # Archive conversation file
+            try:
+                await self._archive_edge_conversation(edge_id)
+            except Exception as e:
+                logger.warning(f"Error archiving conversation for edge '{edge_id}': {e}")
+
+            # Update control relationships if directed edge
+            if edge.directed and edge.to_node == to_node:
+                # Mark subordinate's prompt dirty (controller removed)
+                subordinate = self._nodes.get(to_node)
+                if subordinate:
+                    subordinate.prompt_dirty = True
+                    logger.debug(
+                        f"Marked subordinate '{to_node}' prompt dirty "
+                        f"(lost controller '{from_node}')"
+                    )
+
+            # Remove edge from all structures
+            self._edges.pop(edge_id, None)
+
+            # Clean up adjacency
+            if edge.from_node in self._adjacency:
+                try:
+                    self._adjacency[edge.from_node].remove(edge.to_node)
+                except ValueError:
+                    pass
+
+            if not edge.directed:
+                # Undirected: clean reverse adjacency
+                if edge.to_node in self._adjacency:
+                    try:
+                        self._adjacency[edge.to_node].remove(edge.from_node)
+                    except ValueError:
+                        pass
+
+            # Remove from NetworkX graph
+            try:
+                self._nx_graph.remove_edge(edge.from_node, edge.to_node)
+            except nx.NetworkXError:
+                pass
+
+            if not edge.directed:
+                # Try removing reverse direction
+                try:
+                    self._nx_graph.remove_edge(edge.to_node, edge.from_node)
+                except nx.NetworkXError:
+                    pass
+
+            logger.info(f"Removed edge from '{from_node}' to '{to_node}' (archived conversation)")
+
+    def update_edge(
+        self,
+        from_node: str,
+        to_node: str,
+        **properties: Any,
+    ) -> None:
+        """
+        Update edge properties.
+
+        Merges new properties with existing edge properties. If control_type
+        changes, marks subordinate's prompt as dirty to trigger recomputation.
+
+        Args:
+            from_node: Source node ID
+            to_node: Target node ID
+            **properties: Properties to merge into edge.properties
+
+        Raises:
+            NodeNotFoundError: If either node doesn't exist
+            EdgeNotFoundError: If edge doesn't exist
+
+        Example:
+            >>> # Update control type
+            >>> graph.update_edge("cfo", "analyst",
+            ...     control_type="oversight", priority="high")
+            >>>
+            >>> # Add custom metadata
+            >>> graph.update_edge("peer_a", "peer_b",
+            ...     collaboration_level="high")
+        """
+        # Validate nodes exist
+        if from_node not in self._nodes:
+            raise NodeNotFoundError(f"Node '{from_node}' not found")
+        if to_node not in self._nodes:
+            raise NodeNotFoundError(f"Node '{to_node}' not found")
+
+        # Find edge
+        directed_edge_id = Edge.generate_edge_id(from_node, to_node, directed=True)
+        undirected_edge_id = Edge.generate_edge_id(from_node, to_node, directed=False)
+        reverse_undirected_id = Edge.generate_edge_id(to_node, from_node, directed=False)
+
+        edge_id = None
+        if directed_edge_id in self._edges:
+            edge_id = directed_edge_id
+        elif undirected_edge_id in self._edges:
+            edge_id = undirected_edge_id
+        elif reverse_undirected_id in self._edges:
+            edge_id = reverse_undirected_id
+        else:
+            raise EdgeNotFoundError(f"Edge from '{from_node}' to '{to_node}' not found")
+
+        edge = self._edges[edge_id]
+
+        # Check if control_type is changing (only matters for directed edges)
+        old_control_type = edge.properties.get("control_type")
+        new_control_type = properties.get("control_type")
+        control_type_changed = (
+            edge.directed and
+            new_control_type is not None and
+            old_control_type != new_control_type
+        )
+
+        # Merge properties
+        edge.properties.update(properties)
+
+        # Mark subordinate's prompt dirty if control type changed
+        if control_type_changed:
+            subordinate = self._nodes.get(edge.to_node)
+            if subordinate:
+                subordinate.prompt_dirty = True
+                logger.debug(
+                    f"Marked subordinate '{edge.to_node}' prompt dirty "
+                    f"(control_type changed from '{old_control_type}' to '{new_control_type}')"
+                )
+
+        logger.info(f"Updated edge from '{from_node}' to '{to_node}' properties")
+        logger.debug(f"Edge properties: {edge.properties}")
+
