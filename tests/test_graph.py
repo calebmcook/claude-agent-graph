@@ -9,6 +9,7 @@ import pytest
 
 from claude_agent_graph.backends import FilesystemBackend
 from claude_agent_graph.exceptions import AgentGraphError
+from claude_agent_graph.exceptions import CommandAuthorizationError
 from claude_agent_graph.graph import (
     AgentGraph,
     DuplicateEdgeError,
@@ -1845,3 +1846,440 @@ class TestEdgeUpdate:
         # Nothing should change
         edge = graph.get_edge("a", "b")
         assert edge.properties["priority"] == "high"
+
+
+class TestMessageRoutingPatterns:
+    """Tests for message routing patterns (Epic 6, Feature 6.1)."""
+
+    @pytest.mark.asyncio
+    async def test_broadcast_basic_outgoing(self, tmp_path: Path, mock_claude_sdk) -> None:
+        """Test broadcasting to outgoing neighbors."""
+        graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
+        graph.add_node("supervisor", "Supervisor")
+        graph.add_node("worker_1", "Worker 1")
+        graph.add_node("worker_2", "Worker 2")
+        graph.add_node("worker_3", "Worker 3")
+
+        graph.add_edge("supervisor", "worker_1", directed=True)
+        graph.add_edge("supervisor", "worker_2", directed=True)
+        graph.add_edge("supervisor", "worker_3", directed=True)
+
+        messages = await graph.broadcast("supervisor", "Start working!")
+
+        assert len(messages) == 3
+        assert all(msg.from_node == "supervisor" for msg in messages)
+        assert set(msg.to_node for msg in messages) == {"worker_1", "worker_2", "worker_3"}
+        assert all(msg.content == "Start working!" for msg in messages)
+
+    @pytest.mark.asyncio
+    async def test_broadcast_no_neighbors(self, tmp_path: Path) -> None:
+        """Test broadcast on isolated node returns empty list."""
+        graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
+        graph.add_node("isolated", "Isolated")
+
+        messages = await graph.broadcast("isolated", "Hello")
+
+        assert messages == []
+
+    @pytest.mark.asyncio
+    async def test_broadcast_with_metadata(self, tmp_path: Path, mock_claude_sdk) -> None:
+        """Test broadcast with metadata propagation."""
+        graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
+        graph.add_node("source", "Source")
+        graph.add_node("target_1", "Target 1")
+        graph.add_node("target_2", "Target 2")
+
+        graph.add_edge("source", "target_1", directed=True)
+        graph.add_edge("source", "target_2", directed=True)
+
+        messages = await graph.broadcast("source", "Content", priority="high", task_id=42)
+
+        assert len(messages) == 2
+        assert all(msg.metadata.get("priority") == "high" for msg in messages)
+        assert all(msg.metadata.get("task_id") == 42 for msg in messages)
+
+    @pytest.mark.asyncio
+    async def test_broadcast_include_incoming(self, tmp_path: Path, mock_claude_sdk) -> None:
+        """Test broadcast with include_incoming=True."""
+        graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
+        graph.add_node("center", "Center")
+        graph.add_node("upstream", "Upstream")
+        graph.add_node("downstream", "Downstream")
+
+        # Test 1: Only downstream edge, include_incoming=False
+        graph.add_edge("center", "downstream", directed=True)
+        messages_out = await graph.broadcast("center", "Message", include_incoming=False)
+        assert len(messages_out) == 1
+        assert messages_out[0].to_node == "downstream"
+
+        # Test 2: Add upstream edges and test include_incoming=True
+        graph.add_edge("upstream", "center", directed=True)  # Incoming to center
+        graph.add_edge("center", "upstream", directed=True)  # Outgoing from center
+
+        messages_both = await graph.broadcast("center", "Message", include_incoming=True)
+        assert len(messages_both) == 2
+        assert set(msg.to_node for msg in messages_both) == {"upstream", "downstream"}
+
+    @pytest.mark.asyncio
+    async def test_broadcast_nonexistent_node(self, tmp_path: Path) -> None:
+        """Test broadcast from nonexistent node raises error."""
+        graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
+        graph.add_node("node_1", "Node 1")
+
+        with pytest.raises(NodeNotFoundError):
+            await graph.broadcast("nonexistent", "Message")
+
+    @pytest.mark.asyncio
+    async def test_broadcast_single_neighbor(self, tmp_path: Path, mock_claude_sdk) -> None:
+        """Test broadcast with single neighbor."""
+        graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
+        graph.add_node("source", "Source")
+        graph.add_node("target", "Target")
+        graph.add_edge("source", "target", directed=True)
+
+        messages = await graph.broadcast("source", "Single")
+
+        assert len(messages) == 1
+        assert messages[0].to_node == "target"
+
+    @pytest.mark.asyncio
+    async def test_route_message_auto_shortest_path(self, tmp_path: Path, mock_claude_sdk) -> None:
+        """Test route_message with auto shortest path finding."""
+        graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
+        # Create a path: A -> B -> C -> D
+        graph.add_node("A", "A")
+        graph.add_node("B", "B")
+        graph.add_node("C", "C")
+        graph.add_node("D", "D")
+
+        graph.add_edge("A", "B", directed=True)
+        graph.add_edge("B", "C", directed=True)
+        graph.add_edge("C", "D", directed=True)
+
+        messages = await graph.route_message("A", "D", "Routed message")
+
+        # Should send through all hops: A->B, B->C, C->D = 3 messages
+        assert len(messages) == 3
+        assert messages[0].from_node == "A" and messages[0].to_node == "B"
+        assert messages[1].from_node == "B" and messages[1].to_node == "C"
+        assert messages[2].from_node == "C" and messages[2].to_node == "D"
+
+    @pytest.mark.asyncio
+    async def test_route_message_direct_connection(self, tmp_path: Path, mock_claude_sdk) -> None:
+        """Test route_message with direct connection (one hop)."""
+        graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
+        graph.add_node("A", "A")
+        graph.add_node("B", "B")
+        graph.add_edge("A", "B", directed=True)
+
+        messages = await graph.route_message("A", "B", "Direct")
+
+        assert len(messages) == 1
+        assert messages[0].from_node == "A"
+        assert messages[0].to_node == "B"
+
+    @pytest.mark.asyncio
+    async def test_route_message_explicit_path(self, tmp_path: Path, mock_claude_sdk) -> None:
+        """Test route_message with explicit path."""
+        graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
+        graph.add_node("A", "A")
+        graph.add_node("B", "B")
+        graph.add_node("C", "C")
+        graph.add_node("D", "D")
+
+        graph.add_edge("A", "B", directed=True)
+        graph.add_edge("B", "C", directed=True)
+        graph.add_edge("C", "D", directed=True)
+
+        path = ["A", "B", "C", "D"]
+        messages = await graph.route_message("A", "D", "Explicit path", path=path)
+
+        assert len(messages) == 3
+        # Verify routing metadata
+        for msg in messages:
+            assert msg.metadata.get("routing_path") == path
+            assert msg.metadata.get("hop_count") == 3
+            assert msg.metadata.get("original_sender") == "A"
+
+    @pytest.mark.asyncio
+    async def test_route_message_no_path_exists(self, tmp_path: Path) -> None:
+        """Test route_message when no path exists."""
+        graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
+        graph.add_node("A", "A")
+        graph.add_node("B", "B")
+        graph.add_node("C", "C")
+        # Create two disconnected components: A->B and C
+        graph.add_edge("A", "B", directed=True)
+
+        with pytest.raises(EdgeNotFoundError, match="No path exists"):
+            await graph.route_message("A", "C", "Message")
+
+    @pytest.mark.asyncio
+    async def test_route_message_invalid_explicit_path(self, tmp_path: Path) -> None:
+        """Test route_message with invalid explicit path."""
+        graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
+        graph.add_node("A", "A")
+        graph.add_node("B", "B")
+        graph.add_node("C", "C")
+
+        graph.add_edge("A", "B", directed=True)
+        # No edge from B to C
+
+        with pytest.raises((EdgeNotFoundError, ValueError)):
+            await graph.route_message("A", "C", "Message", path=["A", "B", "C"])
+
+    @pytest.mark.asyncio
+    async def test_route_message_path_wrong_start(self, tmp_path: Path) -> None:
+        """Test route_message with path not starting at from_node."""
+        graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
+        graph.add_node("A", "A")
+        graph.add_node("B", "B")
+        graph.add_node("C", "C")
+
+        with pytest.raises(ValueError, match="Path must start"):
+            await graph.route_message("A", "C", "Message", path=["B", "A", "C"])
+
+    @pytest.mark.asyncio
+    async def test_route_message_path_wrong_end(self, tmp_path: Path) -> None:
+        """Test route_message with path not ending at to_node."""
+        graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
+        graph.add_node("A", "A")
+        graph.add_node("B", "B")
+        graph.add_node("C", "C")
+
+        with pytest.raises(ValueError, match="Path must end"):
+            await graph.route_message("A", "C", "Message", path=["A", "B"])
+
+    @pytest.mark.asyncio
+    async def test_route_message_path_too_short(self, tmp_path: Path) -> None:
+        """Test route_message with path with only one node."""
+        graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
+        graph.add_node("A", "A")
+
+        with pytest.raises(ValueError, match="at least 2 nodes"):
+            await graph.route_message("A", "A", "Message", path=["A"])
+
+    @pytest.mark.asyncio
+    async def test_route_message_nonexistent_sender(self, tmp_path: Path) -> None:
+        """Test route_message with nonexistent sender."""
+        graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
+        graph.add_node("B", "B")
+
+        with pytest.raises(NodeNotFoundError):
+            await graph.route_message("nonexistent", "B", "Message")
+
+    @pytest.mark.asyncio
+    async def test_route_message_nonexistent_receiver(self, tmp_path: Path) -> None:
+        """Test route_message with nonexistent receiver."""
+        graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
+        graph.add_node("A", "A")
+
+        with pytest.raises(NodeNotFoundError):
+            await graph.route_message("A", "nonexistent", "Message")
+
+    @pytest.mark.asyncio
+    async def test_route_message_node_in_path_not_found(self, tmp_path: Path) -> None:
+        """Test route_message with nonexistent node in explicit path."""
+        graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
+        graph.add_node("A", "A")
+        graph.add_node("C", "C")
+
+        with pytest.raises(NodeNotFoundError, match="in path not found"):
+            await graph.route_message("A", "C", "Message", path=["A", "nonexistent", "C"])
+
+    @pytest.mark.asyncio
+    async def test_route_message_metadata_propagation(self, tmp_path: Path, mock_claude_sdk) -> None:
+        """Test that custom metadata is included in routed messages."""
+        graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
+        graph.add_node("A", "A")
+        graph.add_node("B", "B")
+        graph.add_node("C", "C")
+
+        graph.add_edge("A", "B", directed=True)
+        graph.add_edge("B", "C", directed=True)
+
+        messages = await graph.route_message(
+            "A", "C", "Content",
+            priority="high",
+            request_id="req_123"
+        )
+
+        # All routed messages should have the custom metadata
+        for msg in messages:
+            assert msg.metadata.get("priority") == "high"
+            assert msg.metadata.get("request_id") == "req_123"
+            # Plus routing metadata
+            assert "routing_path" in msg.metadata
+            assert "hop_count" in msg.metadata
+
+
+class TestControlCommands:
+    """Tests for control commands (Epic 6, Feature 6.3)."""
+
+    @pytest.mark.asyncio
+    async def test_execute_command_basic(self, tmp_path: Path, mock_claude_sdk) -> None:
+        """Test executing a basic command."""
+        graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
+        graph.add_node("supervisor", "Supervisor")
+        graph.add_node("worker", "Worker")
+        graph.add_edge("supervisor", "worker", directed=True)
+
+        msg = await graph.execute_command("supervisor", "worker", "analyze", dataset="Q1")
+
+        assert msg.from_node == "supervisor"
+        assert msg.to_node == "worker"
+        assert msg.content == "Execute: analyze"
+        assert msg.metadata.get("type") == "command"
+        assert msg.metadata.get("command") == "analyze"
+        assert msg.metadata.get("params").get("dataset") == "Q1"
+
+    @pytest.mark.asyncio
+    async def test_execute_command_multiple_params(self, tmp_path: Path, mock_claude_sdk) -> None:
+        """Test command with multiple parameters."""
+        graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
+        graph.add_node("controller", "Controller")
+        graph.add_node("agent", "Agent")
+        graph.add_edge("controller", "agent", directed=True)
+
+        msg = await graph.execute_command(
+            "controller", "agent", "process",
+            input_file="data.csv",
+            output_format="json",
+            threads=4
+        )
+
+        params = msg.metadata.get("params")
+        assert params.get("input_file") == "data.csv"
+        assert params.get("output_format") == "json"
+        assert params.get("threads") == 4
+
+    @pytest.mark.asyncio
+    async def test_execute_command_no_params(self, tmp_path: Path, mock_claude_sdk) -> None:
+        """Test command with no parameters."""
+        graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
+        graph.add_node("supervisor", "Supervisor")
+        graph.add_node("worker", "Worker")
+        graph.add_edge("supervisor", "worker", directed=True)
+
+        msg = await graph.execute_command("supervisor", "worker", "start")
+
+        assert msg.metadata.get("command") == "start"
+        assert msg.metadata.get("params") == {}
+
+    @pytest.mark.asyncio
+    async def test_execute_command_control_type_in_metadata(
+        self, tmp_path: Path, mock_claude_sdk
+    ) -> None:
+        """Test that control_type from edge properties is included in metadata."""
+        graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
+        graph.add_node("cfo", "CFO")
+        graph.add_node("analyst", "Analyst")
+        graph.add_edge("cfo", "analyst", directed=True, control_type="oversight")
+
+        msg = await graph.execute_command("cfo", "analyst", "report")
+
+        assert msg.metadata.get("authorization_level") == "oversight"
+
+    @pytest.mark.asyncio
+    async def test_execute_command_default_control_type(self, tmp_path: Path, mock_claude_sdk) -> None:
+        """Test default control_type when not specified in edge."""
+        graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
+        graph.add_node("supervisor", "Supervisor")
+        graph.add_node("worker", "Worker")
+        graph.add_edge("supervisor", "worker", directed=True)
+
+        msg = await graph.execute_command("supervisor", "worker", "work")
+
+        assert msg.metadata.get("authorization_level") == "supervisor"
+
+    @pytest.mark.asyncio
+    async def test_execute_command_controller_not_found(self, tmp_path: Path) -> None:
+        """Test execute_command with nonexistent controller."""
+        graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
+        graph.add_node("worker", "Worker")
+
+        with pytest.raises(NodeNotFoundError, match="Node 'nonexistent' not found"):
+            await graph.execute_command("nonexistent", "worker", "command")
+
+    @pytest.mark.asyncio
+    async def test_execute_command_subordinate_not_found(self, tmp_path: Path) -> None:
+        """Test execute_command with nonexistent subordinate."""
+        graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
+        graph.add_node("supervisor", "Supervisor")
+
+        with pytest.raises(NodeNotFoundError, match="Node 'nonexistent' not found"):
+            await graph.execute_command("supervisor", "nonexistent", "command")
+
+    @pytest.mark.asyncio
+    async def test_execute_command_no_control_relationship(self, tmp_path: Path) -> None:
+        """Test execute_command when no control relationship exists."""
+        graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
+        graph.add_node("agent_1", "Agent 1")
+        graph.add_node("agent_2", "Agent 2")
+        # No edge
+
+        with pytest.raises(CommandAuthorizationError, match="does not have control relationship"):
+            await graph.execute_command("agent_1", "agent_2", "command")
+
+    @pytest.mark.asyncio
+    async def test_execute_command_wrong_direction(self, tmp_path: Path) -> None:
+        """Test execute_command with edge in wrong direction."""
+        graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
+        graph.add_node("supervisor", "Supervisor")
+        graph.add_node("worker", "Worker")
+        # Edge is supervisor -> worker, not worker -> supervisor
+        graph.add_edge("supervisor", "worker", directed=True)
+
+        with pytest.raises(CommandAuthorizationError, match="does not have control relationship"):
+            await graph.execute_command("worker", "supervisor", "command")
+
+    @pytest.mark.asyncio
+    async def test_execute_command_undirected_edge_no_control(self, tmp_path: Path) -> None:
+        """Test execute_command fails with undirected edges (no control)."""
+        graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
+        graph.add_node("agent_1", "Agent 1")
+        graph.add_node("agent_2", "Agent 2")
+        graph.add_edge("agent_1", "agent_2", directed=False)
+
+        with pytest.raises(CommandAuthorizationError, match="does not have control relationship"):
+            await graph.execute_command("agent_1", "agent_2", "command")
+
+    @pytest.mark.asyncio
+    async def test_execute_command_multiple_commands_sequence(
+        self, tmp_path: Path, mock_claude_sdk
+    ) -> None:
+        """Test executing multiple commands in sequence."""
+        graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
+        graph.add_node("supervisor", "Supervisor")
+        graph.add_node("worker", "Worker")
+        graph.add_edge("supervisor", "worker", directed=True)
+
+        msg1 = await graph.execute_command("supervisor", "worker", "start", task="task1")
+        msg2 = await graph.execute_command("supervisor", "worker", "process", task="task2")
+        msg3 = await graph.execute_command("supervisor", "worker", "stop")
+
+        assert msg1.metadata.get("command") == "start"
+        assert msg2.metadata.get("command") == "process"
+        assert msg3.metadata.get("command") == "stop"
+        assert msg1.message_id != msg2.message_id != msg3.message_id
+
+    @pytest.mark.asyncio
+    async def test_execute_command_from_multiple_controllers(
+        self, tmp_path: Path, mock_claude_sdk
+    ) -> None:
+        """Test command execution from multiple different controllers."""
+        graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
+        graph.add_node("cfo", "CFO")
+        graph.add_node("risk_officer", "Risk Officer")
+        graph.add_node("analyst", "Analyst")
+
+        graph.add_edge("cfo", "analyst", directed=True)
+        graph.add_edge("risk_officer", "analyst", directed=True)
+
+        msg1 = await graph.execute_command("cfo", "analyst", "analyze", aspect="finance")
+        msg2 = await graph.execute_command("risk_officer", "analyst", "analyze", aspect="risk")
+
+        assert msg1.from_node == "cfo"
+        assert msg2.from_node == "risk_officer"
+        assert msg1.to_node == "analyst"
+        assert msg2.to_node == "analyst"

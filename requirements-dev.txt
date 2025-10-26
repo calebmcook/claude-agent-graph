@@ -13,3 +13,4 @@ mypy>=1.0.0
 
 # Type stubs
 types-aiofiles>=23.0.0
+ipykernel>=6.0.0
