@@ -272,6 +272,16 @@ class AgentGraph:
             self._adjacency[to_node].append(from_node)
             self._nx_graph.add_edge(to_node, from_node)
 
+        # If directed edge, handle control relationship
+        if directed:
+            # Mark subordinate's prompt as dirty (new controller added)
+            to_node_obj = self.get_node(to_node)
+            to_node_obj.prompt_dirty = True
+            logger.info(
+                f"Control relationship: '{from_node}' → '{to_node}' "
+                f"({properties.get('control_type', 'supervisor')})"
+            )
+
         logger.debug(
             f"Added {'directed' if directed else 'undirected'} edge "
             f"'{from_node}' -> '{to_node}' in graph '{self.name}'"
@@ -622,6 +632,90 @@ class AgentGraph:
                     f"Adding edge {from_node} -> {to_node} violates chain constraint"
                 )
 
+    # ==================== Control Relationships & Prompt Injection ====================
+
+    def _compute_effective_prompt(self, node_id: str) -> str:
+        """
+        Compute effective system prompt for a node.
+
+        Combines original prompt with injected controller information.
+        Handles multiple controllers.
+
+        Args:
+            node_id: Node to compute prompt for
+
+        Returns:
+            Effective system prompt with controller information injected
+        """
+        node = self.get_node(node_id)
+        original = node.original_system_prompt or node.system_prompt
+
+        # Find all controllers (incoming directed edges)
+        controllers: list[tuple[str, str]] = []
+        for edge in self._edges.values():
+            if edge.to_node == node_id and edge.directed:
+                control_type = edge.properties.get("control_type", "supervisor")
+                controllers.append((edge.from_node, control_type))
+
+        # If no controllers, return original prompt
+        if not controllers:
+            return original
+
+        # Build controller list
+        controller_lines = "\n".join(
+            f"  - Agent '{ctrl_id}' ({ctrl_type})"
+            for ctrl_id, ctrl_type in sorted(controllers)
+        )
+
+        # Inject control information
+        injected = f"""{original}
+
+## Control Hierarchy
+You are agent '{node_id}'. You report to the following controllers:
+{controller_lines}
+
+Follow directives from your controllers while maintaining your specialized role."""
+
+        return injected
+
+    def _mark_subordinates_dirty(self, controller_id: str) -> None:
+        """
+        Mark all subordinates' prompts as dirty (need recomputation).
+
+        Called when edges are added from a controller node.
+
+        Args:
+            controller_id: Controller node ID
+        """
+        for edge in self._edges.values():
+            if edge.from_node == controller_id and edge.directed:
+                subordinate = self.get_node(edge.to_node)
+                subordinate.prompt_dirty = True
+                logger.debug(f"Marked prompt dirty for subordinate '{edge.to_node}'")
+
+    async def _activate_agent_lazy(self, node_id: str) -> None:
+        """
+        Activate agent, recomputing prompt if dirty.
+
+        Called on first send_message() or explicit start_agent().
+        Ensures agent is running with current control relationships.
+
+        Args:
+            node_id: Node to activate
+        """
+        node = self.get_node(node_id)
+
+        # Recompute prompt if dirty
+        if node.prompt_dirty:
+            new_prompt = self._compute_effective_prompt(node_id)
+            node.effective_system_prompt = new_prompt
+            node.prompt_dirty = False
+            logger.info(f"Updated effective prompt for agent '{node_id}'")
+
+        # Start agent if not running
+        if node_id not in self._agent_manager._contexts:
+            await self._agent_manager.start_agent(node_id)
+
     # Message Routing & Delivery Methods
 
     async def send_message(
@@ -680,6 +774,10 @@ class AgentGraph:
                 edge_id = reverse_undirected
             else:
                 raise EdgeNotFoundError(f"No edge found between '{from_node}' and '{to_node}'")
+
+        # Lazy activate both nodes (recompute prompts if dirty)
+        await self._activate_agent_lazy(from_node)
+        await self._activate_agent_lazy(to_node)
 
         # Create message
         message = Message(
