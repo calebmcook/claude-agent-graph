@@ -13,40 +13,18 @@ from typing import Any
 
 import networkx as nx
 
+from .agent_manager import AgentSessionManager
 from .backends import FilesystemBackend, StorageBackend
+from .exceptions import (
+    AgentGraphError,
+    DuplicateEdgeError,
+    DuplicateNodeError,
+    EdgeNotFoundError,
+    NodeNotFoundError,
+)
 from .models import Edge, Message, Node
 
 logger = logging.getLogger(__name__)
-
-
-class AgentGraphError(Exception):
-    """Base exception for AgentGraph errors."""
-
-    pass
-
-
-class NodeNotFoundError(AgentGraphError):
-    """Raised when a node is not found in the graph."""
-
-    pass
-
-
-class EdgeNotFoundError(AgentGraphError):
-    """Raised when an edge is not found in the graph."""
-
-    pass
-
-
-class DuplicateNodeError(AgentGraphError):
-    """Raised when attempting to add a node with an existing ID."""
-
-    pass
-
-
-class DuplicateEdgeError(AgentGraphError):
-    """Raised when attempting to add a duplicate edge."""
-
-    pass
 
 
 class TopologyViolationError(AgentGraphError):
@@ -102,6 +80,9 @@ class AgentGraph:
 
         # NetworkX graph for topology operations
         self._nx_graph = nx.DiGraph()
+
+        # Agent session manager (Epic 4)
+        self._agent_manager = AgentSessionManager(self)
 
         logger.debug(f"Created AgentGraph '{name}' with storage backend {type(self.storage).__name__}")
 
@@ -804,3 +785,120 @@ class AgentGraph:
             >>> recent = await graph.get_recent_messages("a", "b", count=5)
         """
         return await self.get_conversation(from_node, to_node, limit=count)
+
+    # ==================== Async Context Manager (Epic 4) ====================
+
+    async def __aenter__(self) -> "AgentGraph":
+        """Enter async context manager."""
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: Any,
+    ) -> None:
+        """
+        Exit async context manager and cleanup all agents.
+
+        Args:
+            exc_type: Exception type if an exception was raised
+            exc_val: Exception value if an exception was raised
+            exc_tb: Exception traceback if an exception was raised
+        """
+        if hasattr(self, "_agent_manager"):
+            await self._agent_manager.stop_all()
+            logger.info(f"AgentGraph '{self.name}' cleaned up all agents")
+
+    # ==================== Agent Lifecycle Management (Epic 4) ====================
+
+    async def start_agent(self, node_id: str) -> None:
+        """
+        Start an agent session.
+
+        Creates and starts a ClaudeSDKClient for the specified node.
+        Updates node status to ACTIVE.
+
+        Args:
+            node_id: ID of the node to start
+
+        Raises:
+            NodeNotFoundError: If node doesn't exist
+            AgentGraphError: If agent is already running or start fails
+
+        Example:
+            >>> await graph.start_agent("worker_1")
+        """
+        await self._agent_manager.start_agent(node_id)
+
+    async def stop_agent(self, node_id: str) -> None:
+        """
+        Stop an agent session gracefully.
+
+        Stops the ClaudeSDKClient for the specified node.
+        Updates node status to STOPPED.
+
+        Args:
+            node_id: ID of the node to stop
+
+        Raises:
+            NodeNotFoundError: If node doesn't exist
+            AgentGraphError: If stop operation fails
+
+        Example:
+            >>> await graph.stop_agent("worker_1")
+        """
+        await self._agent_manager.stop_agent(node_id)
+
+    async def restart_agent(self, node_id: str) -> None:
+        """
+        Restart an agent session.
+
+        Stops and then starts the agent with a fresh context.
+
+        Args:
+            node_id: ID of the node to restart
+
+        Raises:
+            NodeNotFoundError: If node doesn't exist
+            AgentGraphError: If restart operation fails
+
+        Example:
+            >>> await graph.restart_agent("worker_1")
+        """
+        await self._agent_manager.restart_agent(node_id)
+
+    def get_agent_status(self, node_id: str) -> dict[str, Any]:
+        """
+        Get comprehensive status information for an agent.
+
+        Args:
+            node_id: ID of the node
+
+        Returns:
+            Dictionary containing:
+                - node_id: The node ID
+                - status: Current status (initializing, active, stopped, error)
+                - model: Model being used
+                - is_running: Whether agent session is active
+                - last_error: Last error message (if any)
+                - error_count: Number of errors encountered
+                - created_at: When the node was created
+
+        Raises:
+            NodeNotFoundError: If node doesn't exist
+
+        Example:
+            >>> status = graph.get_agent_status("worker_1")
+            >>> print(status['status'])  # 'active'
+        """
+        node = self.get_node(node_id)
+        return {
+            "node_id": node_id,
+            "status": node.status.value,
+            "model": node.model,
+            "is_running": self._agent_manager.is_running(node_id),
+            "last_error": node.metadata.get("last_error"),
+            "error_count": node.metadata.get("error_count", 0),
+            "created_at": node.created_at.isoformat(),
+        }
