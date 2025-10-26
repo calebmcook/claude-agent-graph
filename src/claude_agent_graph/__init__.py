@@ -10,11 +10,18 @@ from claude_agent_graph.agent_manager import AgentSessionManager
 from claude_agent_graph.exceptions import (
     AgentGraphError,
     AgentSessionError,
+    CommandAuthorizationError,
     DuplicateEdgeError,
     DuplicateNodeError,
     EdgeNotFoundError,
     NodeNotFoundError,
     TopologyValidationError,
+)
+from claude_agent_graph.execution import (
+    ExecutionMode,
+    ManualController,
+    ProactiveExecutor,
+    ReactiveExecutor,
 )
 from claude_agent_graph.graph import AgentGraph
 from claude_agent_graph.models import (
@@ -39,6 +46,11 @@ __all__ = [
     # Core classes
     "AgentGraph",
     "AgentSessionManager",
+    # Execution modes (Epic 6)
+    "ExecutionMode",
+    "ManualController",
+    "ReactiveExecutor",
+    "ProactiveExecutor",
     # Data models
     "Message",
     "MessageRole",
@@ -54,6 +66,7 @@ __all__ = [
     # Exceptions
     "AgentGraphError",
     "AgentSessionError",
+    "CommandAuthorizationError",
     "NodeNotFoundError",
     "EdgeNotFoundError",
     "DuplicateNodeError",

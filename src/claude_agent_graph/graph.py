@@ -18,6 +18,7 @@ from .agent_manager import AgentSessionManager
 from .backends import FilesystemBackend, StorageBackend
 from .exceptions import (
     AgentGraphError,
+    CommandAuthorizationError,
     DuplicateEdgeError,
     DuplicateNodeError,
     EdgeNotFoundError,
@@ -87,6 +88,10 @@ class AgentGraph:
 
         # Lock for thread-safe concurrent modifications (Epic 5)
         self._modification_lock = asyncio.Lock()
+
+        # Message queues for execution modes (Epic 6)
+        self._message_queues: dict[str, asyncio.Queue] = {}
+        self._execution_mode = None
 
         logger.debug(f"Created AgentGraph '{name}' with storage backend {type(self.storage).__name__}")
 
@@ -804,6 +809,73 @@ Follow directives from your controllers while maintaining your specialized role.
 
         return relationships
 
+    # ==================== Control Commands (Epic 6) ====================
+
+    async def execute_command(
+        self,
+        controller: str,
+        subordinate: str,
+        command: str,
+        **params: Any,
+    ) -> Message:
+        """
+        Execute a command on a subordinate agent.
+
+        Validates that controller has a directed edge to subordinate,
+        then sends a specially formatted command message.
+
+        Args:
+            controller: ID of the controlling agent
+            subordinate: ID of the subordinate agent
+            command: Command name (e.g., "process_data")
+            **params: Command parameters
+
+        Returns:
+            The command Message object
+
+        Raises:
+            NodeNotFoundError: If either node doesn't exist
+            CommandAuthorizationError: If controller doesn't control subordinate
+
+        Example:
+            >>> msg = await graph.execute_command(
+            ...     "supervisor", "worker", "analyze",
+            ...     dataset="Q1", output_format="json"
+            ... )
+        """
+        # Validate nodes exist
+        if controller not in self._nodes:
+            raise NodeNotFoundError(f"Node '{controller}' not found")
+        if subordinate not in self._nodes:
+            raise NodeNotFoundError(f"Node '{subordinate}' not found")
+
+        # Check control relationship
+        if not self.is_controller(controller, subordinate):
+            raise CommandAuthorizationError(
+                f"'{controller}' does not have control relationship with '{subordinate}'"
+            )
+
+        # Build command metadata
+        edge = self.get_edge(controller, subordinate)
+        command_metadata = {
+            "type": "command",
+            "command": command,
+            "params": params,
+            "authorization_level": edge.properties.get("control_type", "supervisor"),
+        }
+
+        # Build command content
+        content = f"Execute: {command}"
+
+        # Send command message
+        message = await self.send_message(controller, subordinate, content, **command_metadata)
+
+        logger.info(
+            f"Command executed: '{controller}' -> '{subordinate}' "
+            f"(command='{command}', params={params})"
+        )
+        return message
+
     # Message Routing & Delivery Methods
 
     async def send_message(
@@ -971,6 +1043,172 @@ Follow directives from your controllers while maintaining your specialized role.
             >>> recent = await graph.get_recent_messages("a", "b", count=5)
         """
         return await self.get_conversation(from_node, to_node, limit=count)
+
+    # ==================== Message Routing Patterns (Epic 6) ====================
+
+    async def broadcast(
+        self,
+        from_node: str,
+        content: str,
+        include_incoming: bool = False,
+        **metadata: Any,
+    ) -> list[Message]:
+        """
+        Broadcast a message to all neighbors of a node.
+
+        By default, sends only to outgoing edges (nodes this one sends to).
+        With include_incoming=True, also sends to incoming edges (nodes that send to this one).
+
+        Args:
+            from_node: ID of the sending node
+            content: Message content
+            include_incoming: If True, include incoming edges (default: False)
+            **metadata: Additional metadata for messages
+
+        Returns:
+            List of Message objects (one per recipient)
+
+        Raises:
+            NodeNotFoundError: If from_node doesn't exist
+
+        Example:
+            >>> # Send to all outgoing neighbors
+            >>> messages = await graph.broadcast("supervisor", "Status update")
+            >>>
+            >>> # Send to both incoming and outgoing neighbors
+            >>> messages = await graph.broadcast(
+            ...     "hub", "Alert", include_incoming=True
+            ... )
+        """
+        # Validate node exists
+        if from_node not in self._nodes:
+            raise NodeNotFoundError(f"Node '{from_node}' not found")
+
+        # Get target nodes
+        targets = set()
+
+        # Add outgoing neighbors
+        targets.update(self.get_neighbors(from_node, direction="outgoing"))
+
+        # Add incoming neighbors if requested
+        if include_incoming:
+            targets.update(self.get_neighbors(from_node, direction="incoming"))
+
+        # Send to each neighbor and collect messages
+        messages = []
+        for to_node in sorted(targets):  # Sort for deterministic ordering
+            try:
+                msg = await self.send_message(from_node, to_node, content, **metadata)
+                messages.append(msg)
+            except (EdgeNotFoundError, NodeNotFoundError) as e:
+                logger.warning(f"Failed to send broadcast message to '{to_node}': {e}")
+                # Continue with other recipients
+
+        logger.info(
+            f"Broadcast from '{from_node}': sent to {len(messages)} recipients "
+            f"(include_incoming={include_incoming})"
+        )
+        return messages
+
+    async def route_message(
+        self,
+        from_node: str,
+        to_node: str,
+        content: str,
+        path: list[str] | None = None,
+        **metadata: Any,
+    ) -> list[Message]:
+        """
+        Route a message through a path of intermediate nodes.
+
+        If path is not provided, finds shortest path using NetworkX.
+        Path must start with from_node and end with to_node.
+
+        Args:
+            from_node: Starting node ID
+            to_node: Ending node ID
+            content: Message content
+            path: Explicit path as list of node IDs (optional)
+            **metadata: Additional metadata
+
+        Returns:
+            List of Message objects for each hop
+
+        Raises:
+            NodeNotFoundError: If any node in path doesn't exist
+            EdgeNotFoundError: If path doesn't connect
+            ValueError: If path format invalid
+
+        Example:
+            >>> # Auto-find shortest path
+            >>> messages = await graph.route_message("A", "D", "Request")
+            >>>
+            >>> # Use explicit path
+            >>> messages = await graph.route_message(
+            ...     "A", "D", "Request", path=["A", "B", "C", "D"]
+            ... )
+        """
+        # Validate nodes exist
+        if from_node not in self._nodes:
+            raise NodeNotFoundError(f"Node '{from_node}' not found")
+        if to_node not in self._nodes:
+            raise NodeNotFoundError(f"Node '{to_node}' not found")
+
+        # Find or validate path
+        if path is None:
+            # Auto-find shortest path
+            try:
+                path = nx.shortest_path(self._nx_graph, from_node, to_node)
+            except (nx.NetworkXNoPath, nx.NodeNotFound):
+                raise EdgeNotFoundError(
+                    f"No path exists between '{from_node}' and '{to_node}'"
+                )
+        else:
+            # Validate provided path
+            if len(path) < 2:
+                raise ValueError(f"Path must have at least 2 nodes, got {len(path)}")
+            if path[0] != from_node:
+                raise ValueError(f"Path must start with '{from_node}', got '{path[0]}'")
+            if path[-1] != to_node:
+                raise ValueError(f"Path must end with '{to_node}', got '{path[-1]}'")
+
+            # Validate all nodes exist and path connects
+            for node_id in path:
+                if node_id not in self._nodes:
+                    raise NodeNotFoundError(f"Node '{node_id}' in path not found")
+
+            # Validate consecutive pairs are connected
+            for i in range(len(path) - 1):
+                curr_node = path[i]
+                next_node = path[i + 1]
+                if not self.edge_exists(curr_node, next_node):
+                    raise EdgeNotFoundError(
+                        f"No edge from '{curr_node}' to '{next_node}' in provided path"
+                    )
+
+        # Add routing metadata
+        routing_metadata = metadata.copy()
+        routing_metadata["routing_path"] = path
+        routing_metadata["hop_count"] = len(path) - 1
+        routing_metadata["original_sender"] = from_node
+
+        # Send through path (hop by hop)
+        messages = []
+        for i in range(len(path) - 1):
+            curr = path[i]
+            next_node = path[i + 1]
+            try:
+                msg = await self.send_message(curr, next_node, content, **routing_metadata)
+                messages.append(msg)
+            except (EdgeNotFoundError, NodeNotFoundError) as e:
+                logger.error(f"Failed to send message from '{curr}' to '{next_node}': {e}")
+                raise
+
+        logger.info(
+            f"Routed message from '{from_node}' to '{to_node}': "
+            f"path={path}, hops={len(path) - 1}"
+        )
+        return messages
 
     # ==================== Async Context Manager (Epic 4) ====================
 

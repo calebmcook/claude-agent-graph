@@ -45,3 +45,9 @@ class AgentSessionError(AgentGraphError):
     """Raised when agent session operations fail."""
 
     pass
+
+
+class CommandAuthorizationError(AgentGraphError):
+    """Raised when command execution is unauthorized."""
+
+    pass
