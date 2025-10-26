@@ -25,6 +25,12 @@ from claude_agent_graph.models import (
     NodeStatus,
     SharedState,
 )
+from claude_agent_graph.transactions import (
+    Operation,
+    RollbackManager,
+    StateSnapshot,
+    TransactionLog,
+)
 
 __version__ = "0.1.0"
 
@@ -40,6 +46,11 @@ __all__ = [
     "NodeStatus",
     "Edge",
     "SharedState",
+    # Transactions (Epic 5)
+    "TransactionLog",
+    "Operation",
+    "StateSnapshot",
+    "RollbackManager",
     # Exceptions
     "AgentGraphError",
     "AgentSessionError",
