@@ -3,6 +3,7 @@ Tests for AgentGraph class and core graph operations.
 """
 
 from pathlib import Path
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -16,6 +17,28 @@ from claude_agent_graph.graph import (
     TopologyViolationError,
 )
 from claude_agent_graph.models import Node
+
+
+@pytest.fixture
+def mock_claude_client():
+    """Create a mock ClaudeSDKClient for testing."""
+    client = AsyncMock()
+    client.__aenter__ = AsyncMock(return_value=client)
+    client.__aexit__ = AsyncMock(return_value=None)
+    return client
+
+
+@pytest.fixture
+def mock_claude_sdk(mock_claude_client):
+    """Mock the ClaudeSDKClient and ClaudeAgentOptions."""
+    with patch(
+        "claude_agent_graph.agent_manager.ClaudeSDKClient",
+        return_value=mock_claude_client,
+    ), patch(
+        "claude_agent_graph.agent_manager.ClaudeAgentOptions",
+        MagicMock(),
+    ):
+        yield
 
 
 class TestAgentGraphInitialization:
@@ -509,7 +532,7 @@ class TestGraphMessageRouting:
     """Tests for AgentGraph message routing methods."""
 
     @pytest.mark.asyncio
-    async def test_send_message_basic(self, tmp_path: Path) -> None:
+    async def test_send_message_basic(self, tmp_path: Path, mock_claude_sdk) -> None:
         """Test sending a basic message between nodes."""
         graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
         graph.add_node("a", "Agent A")
@@ -524,7 +547,7 @@ class TestGraphMessageRouting:
         assert msg.message_id.startswith("msg_")
 
     @pytest.mark.asyncio
-    async def test_send_message_with_metadata(self, tmp_path: Path) -> None:
+    async def test_send_message_with_metadata(self, tmp_path: Path, mock_claude_sdk) -> None:
         """Test sending message with metadata."""
         graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
         graph.add_node("a", "A")
@@ -565,7 +588,7 @@ class TestGraphMessageRouting:
             await graph.send_message("a", "b", "Test")
 
     @pytest.mark.asyncio
-    async def test_send_multiple_messages(self, tmp_path: Path) -> None:
+    async def test_send_multiple_messages(self, tmp_path: Path, mock_claude_sdk) -> None:
         """Test sending multiple messages."""
         graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
         graph.add_node("a", "A")
@@ -580,7 +603,7 @@ class TestGraphMessageRouting:
         assert msg2.message_id != msg3.message_id
 
     @pytest.mark.asyncio
-    async def test_get_conversation_all_messages(self, tmp_path: Path) -> None:
+    async def test_get_conversation_all_messages(self, tmp_path: Path, mock_claude_sdk) -> None:
         """Test retrieving all conversation messages."""
         graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
         graph.add_node("a", "A")
@@ -598,7 +621,7 @@ class TestGraphMessageRouting:
         assert messages[2].content == "Message 3"
 
     @pytest.mark.asyncio
-    async def test_get_conversation_with_limit(self, tmp_path: Path) -> None:
+    async def test_get_conversation_with_limit(self, tmp_path: Path, mock_claude_sdk) -> None:
         """Test retrieving limited messages."""
         graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
         graph.add_node("a", "A")
@@ -634,7 +657,7 @@ class TestGraphMessageRouting:
             await graph.get_conversation("a", "b")
 
     @pytest.mark.asyncio
-    async def test_get_recent_messages(self, tmp_path: Path) -> None:
+    async def test_get_recent_messages(self, tmp_path: Path, mock_claude_sdk) -> None:
         """Test get_recent_messages convenience method."""
         graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
         graph.add_node("a", "A")
@@ -651,7 +674,7 @@ class TestGraphMessageRouting:
         assert recent[4].content == "Msg 19"
 
     @pytest.mark.asyncio
-    async def test_undirected_edge_messaging(self, tmp_path: Path) -> None:
+    async def test_undirected_edge_messaging(self, tmp_path: Path, mock_claude_sdk) -> None:
         """Test messaging works with undirected edges."""
         graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
         graph.add_node("a", "A")
@@ -664,3 +687,435 @@ class TestGraphMessageRouting:
 
         messages = await graph.get_conversation("a", "b")
         assert len(messages) == 2
+
+
+class TestControlRelationships:
+    """Tests for control relationships and system prompt injection."""
+
+    def test_compute_effective_prompt_no_controllers(self):
+        """Test computing effective prompt when node has no controllers."""
+        graph = AgentGraph(name="test")
+        graph.add_node("agent_1", "You are helpful.")
+
+        prompt = graph._compute_effective_prompt("agent_1")
+        assert prompt == "You are helpful."
+
+    def test_compute_effective_prompt_single_controller(self):
+        """Test computing effective prompt with one controller."""
+        graph = AgentGraph(name="test")
+        graph.add_node("supervisor", "You supervise agents.")
+        graph.add_node("worker", "You execute tasks.")
+        graph.add_edge("supervisor", "worker", directed=True, control_type="supervisor")
+
+        prompt = graph._compute_effective_prompt("worker")
+
+        assert "You execute tasks." in prompt
+        assert "## Control Hierarchy" in prompt
+        assert "agent 'worker'" in prompt
+        assert "Agent 'supervisor'" in prompt
+        assert "(supervisor)" in prompt
+
+    def test_compute_effective_prompt_multiple_controllers(self):
+        """Test computing effective prompt with multiple controllers."""
+        graph = AgentGraph(name="test")
+        graph.add_node("cfo", "You manage finance.")
+        graph.add_node("risk_officer", "You manage risk.")
+        graph.add_node("analyst", "You analyze data.")
+
+        graph.add_edge("cfo", "analyst", directed=True, control_type="supervisor")
+        graph.add_edge("risk_officer", "analyst", directed=True, control_type="compliance_reviewer")
+
+        prompt = graph._compute_effective_prompt("analyst")
+
+        assert "You analyze data." in prompt
+        assert "## Control Hierarchy" in prompt
+        assert "agent 'analyst'" in prompt
+        assert "Agent 'cfo'" in prompt
+        assert "Agent 'risk_officer'" in prompt
+        assert "(supervisor)" in prompt
+        assert "(compliance_reviewer)" in prompt
+
+    def test_prompt_dirty_flag_on_edge_add(self):
+        """Test that prompt_dirty flag is set when directed edge is added."""
+        graph = AgentGraph(name="test")
+        graph.add_node("supervisor", "You supervise.")
+        graph.add_node("worker", "You work.")
+
+        # Initially not dirty
+        worker_node = graph.get_node("worker")
+        assert worker_node.prompt_dirty is False
+
+        # Add edge (new controller)
+        graph.add_edge("supervisor", "worker", directed=True)
+
+        # Should be marked dirty
+        assert worker_node.prompt_dirty is True
+
+    def test_undirected_edge_no_prompt_dirty(self):
+        """Test that undirected edges don't mark prompts as dirty."""
+        graph = AgentGraph(name="test")
+        graph.add_node("agent_a", "Agent A.")
+        graph.add_node("agent_b", "Agent B.")
+
+        agent_b = graph.get_node("agent_b")
+        assert agent_b.prompt_dirty is False
+
+        graph.add_edge("agent_a", "agent_b", directed=False)
+
+        # Should NOT be marked dirty for undirected edges
+        assert agent_b.prompt_dirty is False
+
+    @pytest.mark.asyncio
+    async def test_activate_agent_lazy_recomputes_dirty_prompt(self, tmp_path: Path, mock_claude_sdk):
+        """Test that _activate_agent_lazy recomputes dirty prompts."""
+        graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
+        graph.add_node("supervisor", "You supervise.")
+        graph.add_node("worker", "You work.")
+
+        worker_node = graph.get_node("worker")
+        assert worker_node.effective_system_prompt is None
+
+        # Add edge (marks dirty)
+        graph.add_edge("supervisor", "worker", directed=True)
+        assert worker_node.prompt_dirty is True
+
+        # Activate (should recompute)
+        await graph._activate_agent_lazy("worker")
+
+        # Check recomputation
+        assert worker_node.prompt_dirty is False
+        assert worker_node.effective_system_prompt is not None
+        assert "supervisor" in worker_node.effective_system_prompt
+
+    @pytest.mark.asyncio
+    async def test_send_message_triggers_lazy_activation(self, tmp_path: Path, mock_claude_sdk):
+        """Test that send_message triggers lazy activation and prompt recomputation."""
+        graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
+        graph.add_node("supervisor", "You supervise.")
+        graph.add_node("worker", "You work.")
+        graph.add_edge("supervisor", "worker", directed=True)
+
+        worker_node = graph.get_node("worker")
+        assert worker_node.prompt_dirty is True
+
+        # Send message (should trigger activation and recomputation)
+        await graph.send_message("supervisor", "worker", "Start working")
+
+        # Check recomputation happened
+        assert worker_node.prompt_dirty is False
+        assert worker_node.effective_system_prompt is not None
+        assert "supervisor" in worker_node.effective_system_prompt
+
+    @pytest.mark.asyncio
+    async def test_send_message_creates_message(self, tmp_path: Path, mock_claude_sdk):
+        """Test that send_message still creates messages after lazy activation."""
+        graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
+        graph.add_node("supervisor", "You supervise.")
+        graph.add_node("worker", "You work.")
+        graph.add_edge("supervisor", "worker", directed=True)
+
+        msg = await graph.send_message("supervisor", "worker", "Start working")
+
+        assert msg.from_node == "supervisor"
+        assert msg.to_node == "worker"
+        assert msg.content == "Start working"
+
+    def test_original_system_prompt_preserved(self):
+        """Test that original system prompt is preserved during injection."""
+        graph = AgentGraph(name="test")
+        original_prompt = "You are a helpful assistant."
+        graph.add_node("worker", original_prompt)
+        graph.add_node("supervisor", "You supervise.")
+
+        worker_node = graph.get_node("worker")
+        # Original should still be in system_prompt
+        assert worker_node.system_prompt == original_prompt
+
+        # Add control relationship
+        graph.add_edge("supervisor", "worker", directed=True)
+
+        # Compute effective prompt
+        effective = graph._compute_effective_prompt("worker")
+
+        # Original should be in effective
+        assert original_prompt in effective
+        # But effective should have more
+        assert "## Control Hierarchy" in effective
+        assert len(effective) > len(original_prompt)
+
+    def test_prompt_injection_format(self):
+        """Test the format of injected control information."""
+        graph = AgentGraph(name="test")
+        graph.add_node("cfo", "CFO prompt")
+        graph.add_node("analyst", "Analyst prompt")
+        graph.add_edge("cfo", "analyst", directed=True, control_type="supervisor")
+
+        prompt = graph._compute_effective_prompt("analyst")
+
+        # Should have clear format
+        assert "## Control Hierarchy" in prompt
+        assert "You are agent 'analyst'" in prompt
+        assert "You report to the following controllers:" in prompt
+        assert "- Agent 'cfo' (supervisor)" in prompt
+
+    def test_control_relationships_with_multiple_edges_from_same_controller(self):
+        """Test prompt injection when controller has multiple subordinates."""
+        graph = AgentGraph(name="test")
+        graph.add_node("supervisor", "You supervise.")
+        graph.add_node("worker_1", "Worker 1.")
+        graph.add_node("worker_2", "Worker 2.")
+
+        graph.add_edge("supervisor", "worker_1", directed=True)
+        graph.add_edge("supervisor", "worker_2", directed=True)
+
+        prompt1 = graph._compute_effective_prompt("worker_1")
+        prompt2 = graph._compute_effective_prompt("worker_2")
+
+        # Both should have supervisor
+        assert "supervisor" in prompt1
+        assert "supervisor" in prompt2
+
+        # Should be different nodes
+        assert "worker_1" in prompt1
+        assert "worker_2" in prompt2
+        assert "worker_2" not in prompt1
+        assert "worker_1" not in prompt2
+
+
+class TestControllerQueries:
+    """Tests for controller query methods."""
+
+    def test_get_controllers_no_controllers(self):
+        """Test getting controllers when node has none."""
+        graph = AgentGraph(name="test")
+        graph.add_node("agent_1", "Agent 1")
+
+        controllers = graph.get_controllers("agent_1")
+        assert controllers == []
+
+    def test_get_controllers_single(self):
+        """Test getting a single controller."""
+        graph = AgentGraph(name="test")
+        graph.add_node("supervisor", "Supervisor")
+        graph.add_node("worker", "Worker")
+        graph.add_edge("supervisor", "worker", directed=True)
+
+        controllers = graph.get_controllers("worker")
+        assert controllers == ["supervisor"]
+
+    def test_get_controllers_multiple(self):
+        """Test getting multiple controllers."""
+        graph = AgentGraph(name="test")
+        graph.add_node("cfo", "CFO")
+        graph.add_node("risk_officer", "Risk Officer")
+        graph.add_node("analyst", "Analyst")
+
+        graph.add_edge("cfo", "analyst", directed=True)
+        graph.add_edge("risk_officer", "analyst", directed=True)
+
+        controllers = graph.get_controllers("analyst")
+        assert set(controllers) == {"cfo", "risk_officer"}
+        assert controllers == sorted(["cfo", "risk_officer"])
+
+    def test_get_controllers_node_not_found(self):
+        """Test getting controllers for non-existent node raises error."""
+        graph = AgentGraph(name="test")
+        graph.add_node("agent_1", "Agent 1")
+
+        with pytest.raises(NodeNotFoundError):
+            graph.get_controllers("non_existent")
+
+    def test_get_subordinates_no_subordinates(self):
+        """Test getting subordinates when node has none."""
+        graph = AgentGraph(name="test")
+        graph.add_node("agent_1", "Agent 1")
+
+        subordinates = graph.get_subordinates("agent_1")
+        assert subordinates == []
+
+    def test_get_subordinates_single(self):
+        """Test getting a single subordinate."""
+        graph = AgentGraph(name="test")
+        graph.add_node("supervisor", "Supervisor")
+        graph.add_node("worker", "Worker")
+        graph.add_edge("supervisor", "worker", directed=True)
+
+        subordinates = graph.get_subordinates("supervisor")
+        assert subordinates == ["worker"]
+
+    def test_get_subordinates_multiple(self):
+        """Test getting multiple subordinates."""
+        graph = AgentGraph(name="test")
+        graph.add_node("supervisor", "Supervisor")
+        graph.add_node("worker_1", "Worker 1")
+        graph.add_node("worker_2", "Worker 2")
+        graph.add_node("worker_3", "Worker 3")
+
+        graph.add_edge("supervisor", "worker_1", directed=True)
+        graph.add_edge("supervisor", "worker_2", directed=True)
+        graph.add_edge("supervisor", "worker_3", directed=True)
+
+        subordinates = graph.get_subordinates("supervisor")
+        assert set(subordinates) == {"worker_1", "worker_2", "worker_3"}
+        assert subordinates == sorted(["worker_1", "worker_2", "worker_3"])
+
+    def test_get_subordinates_node_not_found(self):
+        """Test getting subordinates for non-existent node raises error."""
+        graph = AgentGraph(name="test")
+        graph.add_node("agent_1", "Agent 1")
+
+        with pytest.raises(NodeNotFoundError):
+            graph.get_subordinates("non_existent")
+
+    def test_is_controller_true(self):
+        """Test is_controller returns True for actual control relationship."""
+        graph = AgentGraph(name="test")
+        graph.add_node("supervisor", "Supervisor")
+        graph.add_node("worker", "Worker")
+        graph.add_edge("supervisor", "worker", directed=True)
+
+        assert graph.is_controller("supervisor", "worker") is True
+
+    def test_is_controller_false_no_edge(self):
+        """Test is_controller returns False when no edge exists."""
+        graph = AgentGraph(name="test")
+        graph.add_node("agent_1", "Agent 1")
+        graph.add_node("agent_2", "Agent 2")
+
+        assert graph.is_controller("agent_1", "agent_2") is False
+
+    def test_is_controller_false_wrong_direction(self):
+        """Test is_controller returns False for wrong direction."""
+        graph = AgentGraph(name="test")
+        graph.add_node("supervisor", "Supervisor")
+        graph.add_node("worker", "Worker")
+        graph.add_edge("supervisor", "worker", directed=True)
+
+        # Wrong direction
+        assert graph.is_controller("worker", "supervisor") is False
+
+    def test_is_controller_nonexistent_nodes(self):
+        """Test is_controller returns False for non-existent nodes."""
+        graph = AgentGraph(name="test")
+        graph.add_node("agent_1", "Agent 1")
+
+        assert graph.is_controller("non_existent_1", "non_existent_2") is False
+        assert graph.is_controller("agent_1", "non_existent") is False
+
+    def test_is_controller_ignores_undirected(self):
+        """Test is_controller ignores undirected edges."""
+        graph = AgentGraph(name="test")
+        graph.add_node("agent_1", "Agent 1")
+        graph.add_node("agent_2", "Agent 2")
+        graph.add_edge("agent_1", "agent_2", directed=False)
+
+        assert graph.is_controller("agent_1", "agent_2") is False
+
+    def test_get_control_relationships_empty_graph(self):
+        """Test get_control_relationships on empty graph."""
+        graph = AgentGraph(name="test")
+
+        relationships = graph.get_control_relationships()
+        assert relationships == {}
+
+    def test_get_control_relationships_no_relationships(self):
+        """Test get_control_relationships when nodes have no control edges."""
+        graph = AgentGraph(name="test")
+        graph.add_node("agent_1", "Agent 1")
+        graph.add_node("agent_2", "Agent 2")
+
+        relationships = graph.get_control_relationships()
+        assert relationships == {}
+
+    def test_get_control_relationships_simple_hierarchy(self):
+        """Test get_control_relationships with simple tree."""
+        graph = AgentGraph(name="test")
+        graph.add_node("supervisor", "Supervisor")
+        graph.add_node("worker_1", "Worker 1")
+        graph.add_node("worker_2", "Worker 2")
+
+        graph.add_edge("supervisor", "worker_1", directed=True)
+        graph.add_edge("supervisor", "worker_2", directed=True)
+
+        relationships = graph.get_control_relationships()
+        assert "supervisor" in relationships
+        assert set(relationships["supervisor"]) == {"worker_1", "worker_2"}
+        assert "worker_1" not in relationships
+
+    def test_get_control_relationships_matrix_organization(self):
+        """Test get_control_relationships with matrix organization."""
+        graph = AgentGraph(name="test")
+        graph.add_node("cfo", "CFO")
+        graph.add_node("risk_officer", "Risk Officer")
+        graph.add_node("analyst", "Analyst")
+
+        graph.add_edge("cfo", "analyst", directed=True)
+        graph.add_edge("risk_officer", "analyst", directed=True)
+
+        relationships = graph.get_control_relationships()
+        assert "cfo" in relationships
+        assert "risk_officer" in relationships
+        assert relationships["cfo"] == ["analyst"]
+        assert relationships["risk_officer"] == ["analyst"]
+
+    def test_get_control_relationships_dag_topology(self):
+        """Test get_control_relationships with DAG topology."""
+        graph = AgentGraph(name="test")
+        graph.add_node("exec", "Executive")
+        graph.add_node("manager_1", "Manager 1")
+        graph.add_node("manager_2", "Manager 2")
+        graph.add_node("worker", "Worker")
+
+        graph.add_edge("exec", "manager_1", directed=True)
+        graph.add_edge("exec", "manager_2", directed=True)
+        graph.add_edge("manager_1", "worker", directed=True)
+        graph.add_edge("manager_2", "worker", directed=True)
+
+        relationships = graph.get_control_relationships()
+        assert set(relationships["exec"]) == {"manager_1", "manager_2"}
+        assert relationships["manager_1"] == ["worker"]
+        assert relationships["manager_2"] == ["worker"]
+        assert "worker" not in relationships
+
+    def test_get_control_relationships_ignores_undirected(self):
+        """Test get_control_relationships ignores undirected edges."""
+        graph = AgentGraph(name="test")
+        graph.add_node("agent_1", "Agent 1")
+        graph.add_node("agent_2", "Agent 2")
+        graph.add_node("agent_3", "Agent 3")
+
+        graph.add_edge("agent_1", "agent_2", directed=True)
+        graph.add_edge("agent_1", "agent_3", directed=False)
+
+        relationships = graph.get_control_relationships()
+        assert relationships == {"agent_1": ["agent_2"]}
+
+    def test_controller_queries_sorted_results(self):
+        """Test that controller queries return sorted results."""
+        graph = AgentGraph(name="test")
+        graph.add_node("z_ctrl", "Z Controller")
+        graph.add_node("a_ctrl", "A Controller")
+        graph.add_node("m_ctrl", "M Controller")
+        graph.add_node("target", "Target")
+
+        graph.add_edge("z_ctrl", "target", directed=True)
+        graph.add_edge("a_ctrl", "target", directed=True)
+        graph.add_edge("m_ctrl", "target", directed=True)
+
+        controllers = graph.get_controllers("target")
+        assert controllers == ["a_ctrl", "m_ctrl", "z_ctrl"]
+
+    def test_subordinate_queries_consistency(self):
+        """Test consistency between get_subordinates and get_control_relationships."""
+        graph = AgentGraph(name="test")
+        graph.add_node("supervisor", "Supervisor")
+        graph.add_node("worker_1", "Worker 1")
+        graph.add_node("worker_2", "Worker 2")
+
+        graph.add_edge("supervisor", "worker_1", directed=True)
+        graph.add_edge("supervisor", "worker_2", directed=True)
+
+        subordinates = graph.get_subordinates("supervisor")
+        relationships = graph.get_control_relationships()
+
+        assert set(subordinates) == set(relationships["supervisor"])
