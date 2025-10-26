@@ -1233,3 +1233,67 @@ Follow directives from your controllers while maintaining your specialized role.
         except Exception as e:
             logger.warning(f"Could not archive conversation for edge '{edge_id}': {e}")
             raise
+
+    def update_node(
+        self,
+        node_id: str,
+        system_prompt: str | None = None,
+        metadata: dict[str, Any] | None = None,
+    ) -> None:
+        """
+        Update node properties at runtime.
+
+        Updates one or more properties of a node. Metadata is merged with existing
+        values (not replaced). If system prompt changes, the prompt_dirty flag is
+        set to trigger recomputation on next agent activation.
+
+        Args:
+            node_id: ID of the node to update
+            system_prompt: New system prompt (optional)
+            metadata: New metadata to merge (optional)
+
+        Raises:
+            NodeNotFoundError: If node doesn't exist
+
+        Example:
+            >>> # Update only system prompt
+            >>> graph.update_node("worker_1",
+            ...     system_prompt="New role description")
+            >>>
+            >>> # Update only metadata
+            >>> graph.update_node("worker_1",
+            ...     metadata={"priority": "high", "team": "alpha"})
+            >>>
+            >>> # Update both
+            >>> graph.update_node("worker_1",
+            ...     system_prompt="New role",
+            ...     metadata={"priority": "high"})
+        """
+        # Validate node exists
+        if node_id not in self._nodes:
+            raise NodeNotFoundError(f"Node '{node_id}' not found")
+
+        node = self._nodes[node_id]
+
+        # Update system prompt if provided
+        if system_prompt is not None:
+            # Store original prompt if not already stored
+            if node.original_system_prompt is None:
+                node.original_system_prompt = node.system_prompt
+
+            # Update prompt
+            node.system_prompt = system_prompt
+            node.prompt_dirty = True
+
+            # Mark subordinates' prompts as dirty (they may need to recompute)
+            self._mark_subordinates_dirty(node_id)
+
+            logger.info(f"Updated system prompt for node '{node_id}'")
+
+        # Update metadata if provided (merge, don't replace)
+        if metadata is not None:
+            node.metadata.update(metadata)
+            logger.info(f"Updated metadata for node '{node_id}'")
+
+        logger.debug(f"Updated node '{node_id}'")
+

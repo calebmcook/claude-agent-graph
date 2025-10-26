@@ -1324,3 +1324,202 @@ class TestNodeRemoval:
         # Verify adjacency is cleaned up
         assert graph.get_neighbors("a", "outgoing") == []
         assert graph.get_neighbors("c", "incoming") == []
+
+
+class TestNodeUpdate:
+    """Tests for node property updates (Epic 5, Story 5.1.3)."""
+
+    def test_update_node_not_found(self):
+        """Test that updating nonexistent node raises NodeNotFoundError."""
+        graph = AgentGraph(name="test")
+        graph.add_node("node_1", "Node 1")
+
+        with pytest.raises(NodeNotFoundError, match="Node 'nonexistent' not found"):
+            graph.update_node("nonexistent", system_prompt="New")
+
+    def test_update_node_system_prompt_only(self):
+        """Test updating only the system prompt."""
+        graph = AgentGraph(name="test")
+        graph.add_node("node_1", "Original prompt")
+
+        original_metadata = {"key": "value"}
+        graph.get_node("node_1").metadata = original_metadata.copy()
+
+        # Update prompt
+        graph.update_node("node_1", system_prompt="New prompt")
+
+        # Verify prompt updated
+        node = graph.get_node("node_1")
+        assert node.system_prompt == "New prompt"
+        # Original prompt stored for reference
+        assert node.original_system_prompt == "Original prompt"
+        # Prompt marked dirty for recomputation
+        assert node.prompt_dirty
+        # Metadata unchanged
+        assert node.metadata == original_metadata
+
+    def test_update_node_metadata_only(self):
+        """Test updating only metadata."""
+        graph = AgentGraph(name="test")
+        original_prompt = "Original prompt"
+        graph.add_node("node_1", original_prompt)
+
+        original_metadata = {"key": "value"}
+        graph.get_node("node_1").metadata = original_metadata.copy()
+
+        # Update metadata
+        graph.update_node("node_1", metadata={"new_key": "new_value"})
+
+        # Verify metadata merged
+        node = graph.get_node("node_1")
+        assert node.metadata == {"key": "value", "new_key": "new_value"}
+        # Prompt unchanged
+        assert node.system_prompt == original_prompt
+        # prompt_dirty not set for metadata-only updates
+        assert not node.prompt_dirty
+
+    def test_update_node_both_prompt_and_metadata(self):
+        """Test updating both prompt and metadata simultaneously."""
+        graph = AgentGraph(name="test")
+        graph.add_node("node_1", "Original")
+        graph.get_node("node_1").metadata = {"old": "value"}
+
+        # Update both
+        graph.update_node(
+            "node_1",
+            system_prompt="New prompt",
+            metadata={"new": "metadata"},
+        )
+
+        node = graph.get_node("node_1")
+        assert node.system_prompt == "New prompt"
+        assert node.original_system_prompt == "Original"
+        assert node.prompt_dirty
+        assert node.metadata == {"old": "value", "new": "metadata"}
+
+    def test_update_node_metadata_merged_not_replaced(self):
+        """Test that metadata update merges rather than replaces."""
+        graph = AgentGraph(name="test")
+        graph.add_node("node_1", "Prompt")
+        graph.get_node("node_1").metadata = {"a": 1, "b": 2, "c": 3}
+
+        # Update some metadata
+        graph.update_node("node_1", metadata={"b": 20, "d": 4})
+
+        # Verify merge
+        node = graph.get_node("node_1")
+        assert node.metadata == {"a": 1, "b": 20, "c": 3, "d": 4}
+
+    def test_update_node_marks_subordinates_dirty(self):
+        """Test that prompt update marks subordinates' prompts dirty."""
+        graph = AgentGraph(name="test")
+        graph.add_node("supervisor", "Supervisor")
+        graph.add_node("worker_1", "Worker 1")
+        graph.add_node("worker_2", "Worker 2")
+
+        graph.add_edge("supervisor", "worker_1", directed=True)
+        graph.add_edge("supervisor", "worker_2", directed=True)
+
+        # Clear the initial dirty flags
+        graph.get_node("worker_1").prompt_dirty = False
+        graph.get_node("worker_2").prompt_dirty = False
+
+        # Update supervisor's prompt
+        graph.update_node("supervisor", system_prompt="Updated supervisor")
+
+        # Subordinates' prompts should be marked dirty
+        assert graph.get_node("worker_1").prompt_dirty
+        assert graph.get_node("worker_2").prompt_dirty
+
+    def test_update_node_preserves_original_prompt(self):
+        """Test that original prompt is preserved on first update."""
+        graph = AgentGraph(name="test")
+        graph.add_node("node_1", "Original prompt")
+
+        # First update
+        graph.update_node("node_1", system_prompt="First update")
+        assert graph.get_node("node_1").original_system_prompt == "Original prompt"
+
+        # Second update
+        graph.update_node("node_1", system_prompt="Second update")
+        # Original prompt should still be from first
+        assert graph.get_node("node_1").original_system_prompt == "Original prompt"
+
+    def test_update_node_multiple_updates(self):
+        """Test multiple updates to same node."""
+        graph = AgentGraph(name="test")
+        graph.add_node("node_1", "Initial")
+        graph.get_node("node_1").metadata = {"version": 1}
+
+        # First update
+        graph.update_node("node_1", system_prompt="V2", metadata={"version": 2})
+        node = graph.get_node("node_1")
+        assert node.system_prompt == "V2"
+        assert node.metadata["version"] == 2
+        assert node.prompt_dirty
+
+        # Clear dirty flag
+        node.prompt_dirty = False
+
+        # Second update (only metadata)
+        graph.update_node("node_1", metadata={"version": 3})
+        node = graph.get_node("node_1")
+        assert node.system_prompt == "V2"  # Unchanged
+        assert node.metadata["version"] == 3
+        assert not node.prompt_dirty  # Not set for metadata-only
+
+    def test_update_node_no_changes(self):
+        """Test updating with no parameters succeeds but does nothing."""
+        graph = AgentGraph(name="test")
+        graph.add_node("node_1", "Original")
+        graph.get_node("node_1").metadata = {"key": "value"}
+        graph.get_node("node_1").prompt_dirty = False
+
+        # Call with no updates
+        graph.update_node("node_1")
+
+        # Nothing should change
+        node = graph.get_node("node_1")
+        assert node.system_prompt == "Original"
+        assert node.metadata == {"key": "value"}
+        assert not node.prompt_dirty
+
+    def test_update_node_chain_of_subordinates(self):
+        """Test that updating prompts cascades through chain of subordinates."""
+        graph = AgentGraph(name="test")
+        # Create chain: supervisor -> manager -> worker
+        graph.add_node("supervisor", "Supervisor")
+        graph.add_node("manager", "Manager")
+        graph.add_node("worker", "Worker")
+
+        graph.add_edge("supervisor", "manager", directed=True)
+        graph.add_edge("manager", "worker", directed=True)
+
+        # Clear dirty flags
+        graph.get_node("manager").prompt_dirty = False
+        graph.get_node("worker").prompt_dirty = False
+
+        # Update supervisor
+        graph.update_node("supervisor", system_prompt="Updated supervisor")
+
+        # Only manager should be marked dirty (direct subordinate)
+        assert graph.get_node("manager").prompt_dirty
+        # Worker is not directly supervised by supervisor
+        assert not graph.get_node("worker").prompt_dirty
+
+    def test_update_node_with_undirected_edges(self):
+        """Test that undirected edges don't affect dirty flag."""
+        graph = AgentGraph(name="test")
+        graph.add_node("node_a", "A")
+        graph.add_node("node_b", "B")
+
+        graph.add_edge("node_a", "node_b", directed=False)
+
+        # Clear dirty flag
+        graph.get_node("node_b").prompt_dirty = False
+
+        # Update node_a
+        graph.update_node("node_a", system_prompt="Updated A")
+
+        # node_b should NOT be marked dirty (undirected edge doesn't create control)
+        assert not graph.get_node("node_b").prompt_dirty
