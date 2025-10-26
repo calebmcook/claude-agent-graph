@@ -716,6 +716,90 @@ Follow directives from your controllers while maintaining your specialized role.
         if node_id not in self._agent_manager._contexts:
             await self._agent_manager.start_agent(node_id)
 
+    # ==================== Controller Query Methods ====================
+
+    def get_controllers(self, node_id: str) -> list[str]:
+        """
+        Get all controllers for a node.
+
+        Returns IDs of nodes with directed edges pointing TO this node.
+
+        Args:
+            node_id: Node to query
+
+        Returns:
+            List of controller node IDs (sorted, may be empty)
+
+        Raises:
+            NodeNotFoundError: If node doesn't exist
+        """
+        if not self.node_exists(node_id):
+            raise NodeNotFoundError(f"Node '{node_id}' not found")
+
+        controllers = []
+        for edge in self._edges.values():
+            if edge.to_node == node_id and edge.directed:
+                controllers.append(edge.from_node)
+
+        return sorted(controllers)
+
+    def get_subordinates(self, node_id: str) -> list[str]:
+        """
+        Get all subordinates for a node.
+
+        Returns IDs of nodes with directed edges FROM this node.
+
+        Args:
+            node_id: Node to query
+
+        Returns:
+            List of subordinate node IDs (sorted, may be empty)
+
+        Raises:
+            NodeNotFoundError: If node doesn't exist
+        """
+        if not self.node_exists(node_id):
+            raise NodeNotFoundError(f"Node '{node_id}' not found")
+
+        subordinates = []
+        for edge in self._edges.values():
+            if edge.from_node == node_id and edge.directed:
+                subordinates.append(edge.to_node)
+
+        return sorted(subordinates)
+
+    def is_controller(self, controller_id: str, subordinate_id: str) -> bool:
+        """
+        Check if one node controls another.
+
+        Args:
+            controller_id: Potential controller node ID
+            subordinate_id: Potential subordinate node ID
+
+        Returns:
+            True if controller_id has a directed edge to subordinate_id, False otherwise
+        """
+        edge_id = Edge.generate_edge_id(controller_id, subordinate_id, directed=True)
+        return edge_id in self._edges and self._edges[edge_id].directed
+
+    def get_control_relationships(self) -> dict[str, list[str]]:
+        """
+        Get all control relationships in the graph.
+
+        Returns a dictionary mapping node IDs to their subordinates.
+        Only includes nodes that have at least one subordinate.
+
+        Returns:
+            Dictionary: node_id → list of subordinate node IDs (sorted)
+        """
+        relationships = {}
+        for node_id in self._nodes:
+            subordinates = self.get_subordinates(node_id)
+            if subordinates:
+                relationships[node_id] = subordinates
+
+        return relationships
+
     # Message Routing & Delivery Methods
 
     async def send_message(

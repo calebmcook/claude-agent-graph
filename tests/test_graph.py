@@ -880,3 +880,242 @@ class TestControlRelationships:
         assert "worker_2" in prompt2
         assert "worker_2" not in prompt1
         assert "worker_1" not in prompt2
+
+
+class TestControllerQueries:
+    """Tests for controller query methods."""
+
+    def test_get_controllers_no_controllers(self):
+        """Test getting controllers when node has none."""
+        graph = AgentGraph(name="test")
+        graph.add_node("agent_1", "Agent 1")
+
+        controllers = graph.get_controllers("agent_1")
+        assert controllers == []
+
+    def test_get_controllers_single(self):
+        """Test getting a single controller."""
+        graph = AgentGraph(name="test")
+        graph.add_node("supervisor", "Supervisor")
+        graph.add_node("worker", "Worker")
+        graph.add_edge("supervisor", "worker", directed=True)
+
+        controllers = graph.get_controllers("worker")
+        assert controllers == ["supervisor"]
+
+    def test_get_controllers_multiple(self):
+        """Test getting multiple controllers."""
+        graph = AgentGraph(name="test")
+        graph.add_node("cfo", "CFO")
+        graph.add_node("risk_officer", "Risk Officer")
+        graph.add_node("analyst", "Analyst")
+
+        graph.add_edge("cfo", "analyst", directed=True)
+        graph.add_edge("risk_officer", "analyst", directed=True)
+
+        controllers = graph.get_controllers("analyst")
+        assert set(controllers) == {"cfo", "risk_officer"}
+        assert controllers == sorted(["cfo", "risk_officer"])
+
+    def test_get_controllers_node_not_found(self):
+        """Test getting controllers for non-existent node raises error."""
+        graph = AgentGraph(name="test")
+        graph.add_node("agent_1", "Agent 1")
+
+        with pytest.raises(NodeNotFoundError):
+            graph.get_controllers("non_existent")
+
+    def test_get_subordinates_no_subordinates(self):
+        """Test getting subordinates when node has none."""
+        graph = AgentGraph(name="test")
+        graph.add_node("agent_1", "Agent 1")
+
+        subordinates = graph.get_subordinates("agent_1")
+        assert subordinates == []
+
+    def test_get_subordinates_single(self):
+        """Test getting a single subordinate."""
+        graph = AgentGraph(name="test")
+        graph.add_node("supervisor", "Supervisor")
+        graph.add_node("worker", "Worker")
+        graph.add_edge("supervisor", "worker", directed=True)
+
+        subordinates = graph.get_subordinates("supervisor")
+        assert subordinates == ["worker"]
+
+    def test_get_subordinates_multiple(self):
+        """Test getting multiple subordinates."""
+        graph = AgentGraph(name="test")
+        graph.add_node("supervisor", "Supervisor")
+        graph.add_node("worker_1", "Worker 1")
+        graph.add_node("worker_2", "Worker 2")
+        graph.add_node("worker_3", "Worker 3")
+
+        graph.add_edge("supervisor", "worker_1", directed=True)
+        graph.add_edge("supervisor", "worker_2", directed=True)
+        graph.add_edge("supervisor", "worker_3", directed=True)
+
+        subordinates = graph.get_subordinates("supervisor")
+        assert set(subordinates) == {"worker_1", "worker_2", "worker_3"}
+        assert subordinates == sorted(["worker_1", "worker_2", "worker_3"])
+
+    def test_get_subordinates_node_not_found(self):
+        """Test getting subordinates for non-existent node raises error."""
+        graph = AgentGraph(name="test")
+        graph.add_node("agent_1", "Agent 1")
+
+        with pytest.raises(NodeNotFoundError):
+            graph.get_subordinates("non_existent")
+
+    def test_is_controller_true(self):
+        """Test is_controller returns True for actual control relationship."""
+        graph = AgentGraph(name="test")
+        graph.add_node("supervisor", "Supervisor")
+        graph.add_node("worker", "Worker")
+        graph.add_edge("supervisor", "worker", directed=True)
+
+        assert graph.is_controller("supervisor", "worker") is True
+
+    def test_is_controller_false_no_edge(self):
+        """Test is_controller returns False when no edge exists."""
+        graph = AgentGraph(name="test")
+        graph.add_node("agent_1", "Agent 1")
+        graph.add_node("agent_2", "Agent 2")
+
+        assert graph.is_controller("agent_1", "agent_2") is False
+
+    def test_is_controller_false_wrong_direction(self):
+        """Test is_controller returns False for wrong direction."""
+        graph = AgentGraph(name="test")
+        graph.add_node("supervisor", "Supervisor")
+        graph.add_node("worker", "Worker")
+        graph.add_edge("supervisor", "worker", directed=True)
+
+        # Wrong direction
+        assert graph.is_controller("worker", "supervisor") is False
+
+    def test_is_controller_nonexistent_nodes(self):
+        """Test is_controller returns False for non-existent nodes."""
+        graph = AgentGraph(name="test")
+        graph.add_node("agent_1", "Agent 1")
+
+        assert graph.is_controller("non_existent_1", "non_existent_2") is False
+        assert graph.is_controller("agent_1", "non_existent") is False
+
+    def test_is_controller_ignores_undirected(self):
+        """Test is_controller ignores undirected edges."""
+        graph = AgentGraph(name="test")
+        graph.add_node("agent_1", "Agent 1")
+        graph.add_node("agent_2", "Agent 2")
+        graph.add_edge("agent_1", "agent_2", directed=False)
+
+        assert graph.is_controller("agent_1", "agent_2") is False
+
+    def test_get_control_relationships_empty_graph(self):
+        """Test get_control_relationships on empty graph."""
+        graph = AgentGraph(name="test")
+
+        relationships = graph.get_control_relationships()
+        assert relationships == {}
+
+    def test_get_control_relationships_no_relationships(self):
+        """Test get_control_relationships when nodes have no control edges."""
+        graph = AgentGraph(name="test")
+        graph.add_node("agent_1", "Agent 1")
+        graph.add_node("agent_2", "Agent 2")
+
+        relationships = graph.get_control_relationships()
+        assert relationships == {}
+
+    def test_get_control_relationships_simple_hierarchy(self):
+        """Test get_control_relationships with simple tree."""
+        graph = AgentGraph(name="test")
+        graph.add_node("supervisor", "Supervisor")
+        graph.add_node("worker_1", "Worker 1")
+        graph.add_node("worker_2", "Worker 2")
+
+        graph.add_edge("supervisor", "worker_1", directed=True)
+        graph.add_edge("supervisor", "worker_2", directed=True)
+
+        relationships = graph.get_control_relationships()
+        assert "supervisor" in relationships
+        assert set(relationships["supervisor"]) == {"worker_1", "worker_2"}
+        assert "worker_1" not in relationships
+
+    def test_get_control_relationships_matrix_organization(self):
+        """Test get_control_relationships with matrix organization."""
+        graph = AgentGraph(name="test")
+        graph.add_node("cfo", "CFO")
+        graph.add_node("risk_officer", "Risk Officer")
+        graph.add_node("analyst", "Analyst")
+
+        graph.add_edge("cfo", "analyst", directed=True)
+        graph.add_edge("risk_officer", "analyst", directed=True)
+
+        relationships = graph.get_control_relationships()
+        assert "cfo" in relationships
+        assert "risk_officer" in relationships
+        assert relationships["cfo"] == ["analyst"]
+        assert relationships["risk_officer"] == ["analyst"]
+
+    def test_get_control_relationships_dag_topology(self):
+        """Test get_control_relationships with DAG topology."""
+        graph = AgentGraph(name="test")
+        graph.add_node("exec", "Executive")
+        graph.add_node("manager_1", "Manager 1")
+        graph.add_node("manager_2", "Manager 2")
+        graph.add_node("worker", "Worker")
+
+        graph.add_edge("exec", "manager_1", directed=True)
+        graph.add_edge("exec", "manager_2", directed=True)
+        graph.add_edge("manager_1", "worker", directed=True)
+        graph.add_edge("manager_2", "worker", directed=True)
+
+        relationships = graph.get_control_relationships()
+        assert set(relationships["exec"]) == {"manager_1", "manager_2"}
+        assert relationships["manager_1"] == ["worker"]
+        assert relationships["manager_2"] == ["worker"]
+        assert "worker" not in relationships
+
+    def test_get_control_relationships_ignores_undirected(self):
+        """Test get_control_relationships ignores undirected edges."""
+        graph = AgentGraph(name="test")
+        graph.add_node("agent_1", "Agent 1")
+        graph.add_node("agent_2", "Agent 2")
+        graph.add_node("agent_3", "Agent 3")
+
+        graph.add_edge("agent_1", "agent_2", directed=True)
+        graph.add_edge("agent_1", "agent_3", directed=False)
+
+        relationships = graph.get_control_relationships()
+        assert relationships == {"agent_1": ["agent_2"]}
+
+    def test_controller_queries_sorted_results(self):
+        """Test that controller queries return sorted results."""
+        graph = AgentGraph(name="test")
+        graph.add_node("z_ctrl", "Z Controller")
+        graph.add_node("a_ctrl", "A Controller")
+        graph.add_node("m_ctrl", "M Controller")
+        graph.add_node("target", "Target")
+
+        graph.add_edge("z_ctrl", "target", directed=True)
+        graph.add_edge("a_ctrl", "target", directed=True)
+        graph.add_edge("m_ctrl", "target", directed=True)
+
+        controllers = graph.get_controllers("target")
+        assert controllers == ["a_ctrl", "m_ctrl", "z_ctrl"]
+
+    def test_subordinate_queries_consistency(self):
+        """Test consistency between get_subordinates and get_control_relationships."""
+        graph = AgentGraph(name="test")
+        graph.add_node("supervisor", "Supervisor")
+        graph.add_node("worker_1", "Worker 1")
+        graph.add_node("worker_2", "Worker 2")
+
+        graph.add_edge("supervisor", "worker_1", directed=True)
+        graph.add_edge("supervisor", "worker_2", directed=True)
+
+        subordinates = graph.get_subordinates("supervisor")
+        relationships = graph.get_control_relationships()
+
+        assert set(subordinates) == set(relationships["supervisor"])
