@@ -170,31 +170,35 @@ class ReactiveExecutor(ExecutionMode):
 
                 # Create monitor tasks for all queues
                 monitor_tasks = [
-                    self._monitor_queue(node_id, queue)
+                    asyncio.create_task(self._monitor_queue(node_id, queue))
                     for node_id, queue in queue_dict.items()
                 ]
 
                 if monitor_tasks:
-                    # Wait for any queue to have a message
-                    done, pending = await asyncio.wait(
-                        monitor_tasks,
-                        return_when=asyncio.FIRST_COMPLETED,
-                        timeout=1.0  # Check for new queues every second
-                    )
+                    try:
+                        # Wait for any queue to have a message
+                        done, pending = await asyncio.wait(
+                            monitor_tasks,
+                            return_when=asyncio.FIRST_COMPLETED,
+                            timeout=1.0  # Check for new queues every second
+                        )
 
-                    # Cancel pending tasks
-                    for task in pending:
-                        task.cancel()
+                        # Cancel pending tasks
+                        for task in pending:
+                            task.cancel()
 
-                    # Process completed tasks (queues with messages)
-                    for task in done:
-                        try:
-                            node_id, message = await task
-                            logger.debug(f"Reactive executor: processing {message.message_id} for '{node_id}'")
-                        except asyncio.CancelledError:
-                            pass
-                        except Exception as e:
-                            logger.error(f"Error processing message: {e}")
+                        # Process completed tasks (queues with messages)
+                        for task in done:
+                            try:
+                                node_id, message = await task
+                                logger.debug(f"Reactive executor: processing {message.message_id} for '{node_id}'")
+                            except asyncio.CancelledError:
+                                pass
+                            except Exception as e:
+                                logger.error(f"Error processing message: {e}")
+                    except asyncio.TimeoutError:
+                        # Timeout just means no messages yet, continue
+                        pass
                 else:
                     # No queues yet, wait a bit before checking again
                     await asyncio.sleep(0.1)

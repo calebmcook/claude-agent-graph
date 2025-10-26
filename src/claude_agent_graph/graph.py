@@ -89,6 +89,10 @@ class AgentGraph:
         # Lock for thread-safe concurrent modifications (Epic 5)
         self._modification_lock = asyncio.Lock()
 
+        # Message queues for execution modes (Epic 6)
+        self._message_queues: dict[str, asyncio.Queue] = {}
+        self._execution_mode = None
+
         logger.debug(f"Created AgentGraph '{name}' with storage backend {type(self.storage).__name__}")
 
     def __repr__(self) -> str:
