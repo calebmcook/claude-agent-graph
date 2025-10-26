@@ -73,8 +73,6 @@ class AgentSessionManager:
             options = ClaudeAgentOptions(
                 system_prompt=prompt,
                 model=node.model,
-                # Allow configuration via node metadata
-                working_directory=node.metadata.get("working_directory"),
             )
 
             client = ClaudeSDKClient(options=options)

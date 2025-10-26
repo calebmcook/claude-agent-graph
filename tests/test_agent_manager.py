@@ -23,17 +23,17 @@ from claude_agent_graph.models import NodeStatus
 
 
 @pytest.fixture
-def graph():
+async def graph():
     """Create a test graph with some nodes."""
     g = AgentGraph(name="test_graph")
-    g.add_node("node1", "You are agent 1", model="claude-sonnet-4-20250514")
-    g.add_node("node2", "You are agent 2", model="claude-sonnet-4-20250514")
-    g.add_node("node3", "You are agent 3", model="claude-sonnet-4-20250514")
+    await g.add_node("node1", "You are agent 1", model="claude-sonnet-4-20250514")
+    await g.add_node("node2", "You are agent 2", model="claude-sonnet-4-20250514")
+    await g.add_node("node3", "You are agent 3", model="claude-sonnet-4-20250514")
     return g
 
 
 @pytest.fixture
-def agent_manager(graph):
+async def agent_manager(graph):
     """Get the agent manager from the graph."""
     return graph._agent_manager
 
@@ -75,7 +75,7 @@ class TestSessionCreation:
         self, mock_options_class, mock_client_class, graph, mock_claude_client
     ):
         """Test session creation with node metadata (working_directory)."""
-        graph.add_node(
+        await graph.add_node(
             "node_with_wd",
             "Test prompt",
             working_directory="/tmp/test",
@@ -446,15 +446,15 @@ class TestErrorRecovery:
         assert graph.get_node("node1").status == NodeStatus.ERROR
         assert graph.get_node("node2").status == NodeStatus.ACTIVE
 
-    def test_get_running_agents(self, agent_manager):
+    async def test_get_running_agents(self, agent_manager):
         """Test getting list of running agents."""
         assert agent_manager.get_running_agents() == []
 
-    def test_get_session_count(self, agent_manager):
+    async def test_get_session_count(self, agent_manager):
         """Test getting session count."""
         assert agent_manager.get_session_count() == 0
 
-    def test_get_running_count(self, agent_manager):
+    async def test_get_running_count(self, agent_manager):
         """Test getting running count."""
         assert agent_manager.get_running_count() == 0
 

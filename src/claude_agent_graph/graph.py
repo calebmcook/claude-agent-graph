@@ -117,7 +117,7 @@ class AgentGraph:
 
     # ==================== Node Operations ====================
 
-    def add_node(
+    async def add_node(
         self,
         node_id: str,
         system_prompt: str,
@@ -141,33 +141,37 @@ class AgentGraph:
             ValueError: If validation fails
             AgentGraphError: If max_nodes exceeded
         """
-        # Check if node already exists
-        if node_id in self._nodes:
-            raise DuplicateNodeError(f"Node with ID '{node_id}' already exists")
+        async with self._modification_lock:
+            # Ensure this is truly async (force coroutine creation)
+            await asyncio.sleep(0)
 
-        # Check max_nodes constraint
-        if self.node_count >= self.max_nodes:
-            raise AgentGraphError(
-                f"Cannot add node: graph has reached maximum of {self.max_nodes} nodes"
-            )
+            # Check if node already exists
+            if node_id in self._nodes:
+                raise DuplicateNodeError(f"Node with ID '{node_id}' already exists")
 
-        # Create and validate node
-        try:
-            node = Node(
-                node_id=node_id,
-                system_prompt=system_prompt,
-                model=model,
-                metadata=metadata,
-            )
-        except ValueError as e:
-            raise ValueError(f"Node validation failed: {e}")
+            # Check max_nodes constraint
+            if self.node_count >= self.max_nodes:
+                raise AgentGraphError(
+                    f"Cannot add node: graph has reached maximum of {self.max_nodes} nodes"
+                )
 
-        # Store node
-        self._nodes[node_id] = node
-        self._nx_graph.add_node(node_id)
+            # Create and validate node
+            try:
+                node = Node(
+                    node_id=node_id,
+                    system_prompt=system_prompt,
+                    model=model,
+                    metadata=metadata,
+                )
+            except ValueError as e:
+                raise ValueError(f"Node validation failed: {e}")
 
-        logger.debug(f"Added node '{node_id}' to graph '{self.name}'")
-        return node
+            # Store node
+            self._nodes[node_id] = node
+            self._nx_graph.add_node(node_id)
+
+            logger.debug(f"Added node '{node_id}' to graph '{self.name}'")
+            return node
 
     def get_node(self, node_id: str) -> Node:
         """
@@ -209,7 +213,7 @@ class AgentGraph:
 
     # ==================== Edge Operations ====================
 
-    def add_edge(
+    async def add_edge(
         self,
         from_node: str,
         to_node: str,
@@ -233,69 +237,73 @@ class AgentGraph:
             DuplicateEdgeError: If edge already exists
             TopologyViolationError: If violates topology constraint
         """
-        # Validate nodes exist
-        if from_node not in self._nodes:
-            raise NodeNotFoundError(f"Source node '{from_node}' not found")
-        if to_node not in self._nodes:
-            raise NodeNotFoundError(f"Target node '{to_node}' not found")
+        async with self._modification_lock:
+            # Ensure this is truly async (force coroutine creation)
+            await asyncio.sleep(0)
 
-        # Generate edge ID
-        edge_id = Edge.generate_edge_id(from_node, to_node, directed)
+            # Validate nodes exist
+            if from_node not in self._nodes:
+                raise NodeNotFoundError(f"Source node '{from_node}' not found")
+            if to_node not in self._nodes:
+                raise NodeNotFoundError(f"Target node '{to_node}' not found")
 
-        # Check for duplicate edge
-        if edge_id in self._edges:
-            raise DuplicateEdgeError(f"Edge from '{from_node}' to '{to_node}' already exists")
+            # Generate edge ID
+            edge_id = Edge.generate_edge_id(from_node, to_node, directed)
 
-        # Check reverse edge for undirected graphs
-        if not directed:
-            reverse_id = Edge.generate_edge_id(to_node, from_node, directed)
-            if reverse_id in self._edges:
-                raise DuplicateEdgeError(
-                    f"Undirected edge between '{from_node}' and '{to_node}' already exists"
+            # Check for duplicate edge
+            if edge_id in self._edges:
+                raise DuplicateEdgeError(f"Edge from '{from_node}' to '{to_node}' already exists")
+
+            # Check reverse edge for undirected graphs
+            if not directed:
+                reverse_id = Edge.generate_edge_id(to_node, from_node, directed)
+                if reverse_id in self._edges:
+                    raise DuplicateEdgeError(
+                        f"Undirected edge between '{from_node}' and '{to_node}' already exists"
+                    )
+
+            # Validate topology constraint if set (before adding the edge)
+            if self.topology_constraint:
+                self._validate_topology_constraint(from_node, to_node, directed)
+
+            # Create edge
+            try:
+                edge = Edge(
+                    edge_id=edge_id,
+                    from_node=from_node,
+                    to_node=to_node,
+                    directed=directed,
+                    properties=properties,
+                )
+            except ValueError as e:
+                raise ValueError(f"Edge validation failed: {e}")
+
+            # Store edge
+            self._edges[edge_id] = edge
+            self._adjacency[from_node].append(to_node)
+
+            # Add to networkx graph
+            self._nx_graph.add_edge(from_node, to_node)
+
+            if not directed:
+                self._adjacency[to_node].append(from_node)
+                self._nx_graph.add_edge(to_node, from_node)
+
+            # If directed edge, handle control relationship
+            if directed:
+                # Mark subordinate's prompt as dirty (new controller added)
+                to_node_obj = self.get_node(to_node)
+                to_node_obj.prompt_dirty = True
+                logger.info(
+                    f"Control relationship: '{from_node}' → '{to_node}' "
+                    f"({properties.get('control_type', 'supervisor')})"
                 )
 
-        # Validate topology constraint if set (before adding the edge)
-        if self.topology_constraint:
-            self._validate_topology_constraint(from_node, to_node, directed)
-
-        # Create edge
-        try:
-            edge = Edge(
-                edge_id=edge_id,
-                from_node=from_node,
-                to_node=to_node,
-                directed=directed,
-                properties=properties,
+            logger.debug(
+                f"Added {'directed' if directed else 'undirected'} edge "
+                f"'{from_node}' -> '{to_node}' in graph '{self.name}'"
             )
-        except ValueError as e:
-            raise ValueError(f"Edge validation failed: {e}")
-
-        # Store edge
-        self._edges[edge_id] = edge
-        self._adjacency[from_node].append(to_node)
-
-        # Add to networkx graph
-        self._nx_graph.add_edge(from_node, to_node)
-
-        if not directed:
-            self._adjacency[to_node].append(from_node)
-            self._nx_graph.add_edge(to_node, from_node)
-
-        # If directed edge, handle control relationship
-        if directed:
-            # Mark subordinate's prompt as dirty (new controller added)
-            to_node_obj = self.get_node(to_node)
-            to_node_obj.prompt_dirty = True
-            logger.info(
-                f"Control relationship: '{from_node}' → '{to_node}' "
-                f"({properties.get('control_type', 'supervisor')})"
-            )
-
-        logger.debug(
-            f"Added {'directed' if directed else 'undirected'} edge "
-            f"'{from_node}' -> '{to_node}' in graph '{self.name}'"
-        )
-        return edge
+            return edge
 
     def get_edge(self, from_node: str, to_node: str) -> Edge:
         """

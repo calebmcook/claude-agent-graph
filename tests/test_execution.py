@@ -38,7 +38,7 @@ class TestManualController:
     async def test_manual_controller_initialization(self, tmp_path: Path) -> None:
         """Test manual controller initialization."""
         graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
-        graph.add_node("node_1", "Node 1")
+        await graph.add_node("node_1", "Node 1")
 
         controller = ManualController(graph)
 
@@ -50,7 +50,7 @@ class TestManualController:
     async def test_manual_controller_start_stop(self, tmp_path: Path) -> None:
         """Test starting and stopping manual controller."""
         graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
-        graph.add_node("node_1", "Node 1")
+        await graph.add_node("node_1", "Node 1")
 
         controller = ManualController(graph)
 
@@ -65,7 +65,7 @@ class TestManualController:
     async def test_manual_controller_cannot_start_twice(self, tmp_path: Path) -> None:
         """Test that starting twice raises error."""
         graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
-        graph.add_node("node_1", "Node 1")
+        await graph.add_node("node_1", "Node 1")
 
         controller = ManualController(graph)
 
@@ -80,7 +80,7 @@ class TestManualController:
     async def test_manual_controller_step_no_queue(self, tmp_path: Path) -> None:
         """Test stepping when no messages exist."""
         graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
-        graph.add_node("node_1", "Node 1")
+        await graph.add_node("node_1", "Node 1")
 
         controller = ManualController(graph)
 
@@ -101,8 +101,8 @@ class TestManualController:
     async def test_manual_controller_step_all_no_messages(self, tmp_path: Path) -> None:
         """Test step_all with no pending messages."""
         graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
-        graph.add_node("node_1", "Node 1")
-        graph.add_node("node_2", "Node 2")
+        await graph.add_node("node_1", "Node 1")
+        await graph.add_node("node_2", "Node 2")
 
         controller = ManualController(graph)
 
@@ -114,7 +114,7 @@ class TestManualController:
     async def test_manual_controller_step_processes_message(self, tmp_path: Path) -> None:
         """Test that step processes a message from queue."""
         graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
-        graph.add_node("node_1", "Node 1")
+        await graph.add_node("node_1", "Node 1")
 
         controller = ManualController(graph)
 
@@ -142,9 +142,9 @@ class TestManualController:
     async def test_manual_controller_step_all_multiple_nodes(self, tmp_path: Path) -> None:
         """Test step_all executes all nodes with pending messages."""
         graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
-        graph.add_node("node_1", "Node 1")
-        graph.add_node("node_2", "Node 2")
-        graph.add_node("node_3", "Node 3")
+        await graph.add_node("node_1", "Node 1")
+        await graph.add_node("node_2", "Node 2")
+        await graph.add_node("node_3", "Node 3")
 
         controller = ManualController(graph)
 
@@ -176,7 +176,7 @@ class TestReactiveExecutor:
     async def test_reactive_executor_initialization(self, tmp_path: Path) -> None:
         """Test reactive executor initialization."""
         graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
-        graph.add_node("node_1", "Node 1")
+        await graph.add_node("node_1", "Node 1")
 
         executor = ReactiveExecutor(graph)
 
@@ -187,7 +187,7 @@ class TestReactiveExecutor:
     async def test_reactive_executor_start_stop(self, tmp_path: Path) -> None:
         """Test starting and stopping reactive executor."""
         graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
-        graph.add_node("node_1", "Node 1")
+        await graph.add_node("node_1", "Node 1")
 
         executor = ReactiveExecutor(graph)
 
@@ -202,7 +202,7 @@ class TestReactiveExecutor:
     async def test_reactive_executor_cannot_start_twice(self, tmp_path: Path) -> None:
         """Test that starting twice raises error."""
         graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
-        graph.add_node("node_1", "Node 1")
+        await graph.add_node("node_1", "Node 1")
 
         executor = ReactiveExecutor(graph)
 
@@ -217,7 +217,7 @@ class TestReactiveExecutor:
     async def test_reactive_executor_monitors_queues(self, tmp_path: Path) -> None:
         """Test that reactive executor monitors message queues."""
         graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
-        graph.add_node("node_1", "Node 1")
+        await graph.add_node("node_1", "Node 1")
 
         executor = ReactiveExecutor(graph)
 
@@ -259,8 +259,8 @@ class TestReactiveExecutor:
     async def test_reactive_executor_multiple_queues(self, tmp_path: Path) -> None:
         """Test reactive executor with multiple message queues."""
         graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
-        graph.add_node("node_1", "Node 1")
-        graph.add_node("node_2", "Node 2")
+        await graph.add_node("node_1", "Node 1")
+        await graph.add_node("node_2", "Node 2")
 
         executor = ReactiveExecutor(graph)
 
@@ -297,7 +297,7 @@ class TestProactiveExecutor:
     async def test_proactive_executor_initialization(self, tmp_path: Path) -> None:
         """Test proactive executor initialization."""
         graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
-        graph.add_node("node_1", "Node 1")
+        await graph.add_node("node_1", "Node 1")
 
         executor = ProactiveExecutor(graph, interval=1.0, start_delay=0.1)
 
@@ -309,7 +309,7 @@ class TestProactiveExecutor:
     async def test_proactive_executor_default_interval(self, tmp_path: Path) -> None:
         """Test proactive executor with default interval."""
         graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
-        graph.add_node("node_1", "Node 1")
+        await graph.add_node("node_1", "Node 1")
 
         executor = ProactiveExecutor(graph)
 
@@ -320,7 +320,7 @@ class TestProactiveExecutor:
     async def test_proactive_executor_start_stop(self, tmp_path: Path) -> None:
         """Test starting and stopping proactive executor."""
         graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
-        graph.add_node("node_1", "Node 1")
+        await graph.add_node("node_1", "Node 1")
 
         executor = ProactiveExecutor(graph, interval=0.1, start_delay=0.0)
 
@@ -334,7 +334,7 @@ class TestProactiveExecutor:
     async def test_proactive_executor_respects_start_delay(self, tmp_path: Path) -> None:
         """Test that proactive executor respects start delay."""
         graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
-        graph.add_node("node_1", "Node 1")
+        await graph.add_node("node_1", "Node 1")
 
         executor = ProactiveExecutor(graph, interval=10.0, start_delay=0.2)
 
@@ -355,7 +355,7 @@ class TestProactiveExecutor:
     async def test_proactive_executor_periodic_activation(self, tmp_path: Path) -> None:
         """Test that proactive executor activates periodically."""
         graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
-        graph.add_node("node_1", "Node 1")
+        await graph.add_node("node_1", "Node 1")
 
         # Use very short interval for testing
         executor = ProactiveExecutor(graph, interval=0.05, start_delay=0.0)
@@ -373,7 +373,7 @@ class TestProactiveExecutor:
     async def test_proactive_executor_cannot_start_twice(self, tmp_path: Path) -> None:
         """Test that starting twice raises error."""
         graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
-        graph.add_node("node_1", "Node 1")
+        await graph.add_node("node_1", "Node 1")
 
         executor = ProactiveExecutor(graph)
 
@@ -401,9 +401,9 @@ class TestProactiveExecutor:
     async def test_proactive_executor_multiple_nodes(self, tmp_path: Path) -> None:
         """Test proactive executor activation with multiple nodes."""
         graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
-        graph.add_node("node_1", "Node 1")
-        graph.add_node("node_2", "Node 2")
-        graph.add_node("node_3", "Node 3")
+        await graph.add_node("node_1", "Node 1")
+        await graph.add_node("node_2", "Node 2")
+        await graph.add_node("node_3", "Node 3")
 
         executor = ProactiveExecutor(graph, interval=0.1)
 
