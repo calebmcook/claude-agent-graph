@@ -6,6 +6,7 @@ topology validation, and dynamic modifications. It coordinates node/edge lifecyc
 and message routing.
 """
 
+import asyncio
 import logging
 from collections import defaultdict
 from datetime import datetime
@@ -83,6 +84,9 @@ class AgentGraph:
 
         # Agent session manager (Epic 4)
         self._agent_manager = AgentSessionManager(self)
+
+        # Lock for thread-safe concurrent modifications (Epic 5)
+        self._modification_lock = asyncio.Lock()
 
         logger.debug(f"Created AgentGraph '{name}' with storage backend {type(self.storage).__name__}")
 
@@ -1084,3 +1088,148 @@ Follow directives from your controllers while maintaining your specialized role.
             "error_count": node.metadata.get("error_count", 0),
             "created_at": node.created_at.isoformat(),
         }
+
+    # ==================== Dynamic Node Operations (Epic 5) ====================
+
+    async def remove_node(
+        self,
+        node_id: str,
+        cascade: bool = True,
+    ) -> None:
+        """
+        Remove a node from the graph.
+
+        Removes a node and optionally all connected edges. Stops the agent session
+        gracefully and archives conversation files. Updates control relationships
+        for affected nodes by marking their prompts as dirty.
+
+        Args:
+            node_id: ID of the node to remove
+            cascade: If True, remove all associated edges automatically.
+                    If False, raise error if edges exist (default: True)
+
+        Raises:
+            NodeNotFoundError: If node doesn't exist
+            AgentGraphError: If edges exist and cascade=False
+
+        Example:
+            >>> # Remove node and all connected edges
+            >>> await graph.remove_node("worker_1", cascade=True)
+            >>>
+            >>> # Remove only if isolated (no edges)
+            >>> await graph.remove_node("worker_1", cascade=False)
+        """
+        async with self._modification_lock:
+            # Validate node exists
+            if node_id not in self._nodes:
+                raise NodeNotFoundError(f"Node '{node_id}' not found")
+
+            # Check for edges if cascade=False
+            if not cascade:
+                # Get all connected edges
+                connected_edges = [
+                    edge for edge in self._edges.values()
+                    if edge.from_node == node_id or edge.to_node == node_id
+                ]
+                if connected_edges:
+                    edge_ids = [edge.edge_id for edge in connected_edges]
+                    raise AgentGraphError(
+                        f"Cannot remove node '{node_id}': has {len(connected_edges)} connected edge(s). "
+                        f"Set cascade=True to remove edges, or remove them manually. "
+                        f"Edges: {', '.join(edge_ids)}"
+                    )
+
+            # Collect edges to remove if cascade=True
+            edges_to_remove = []
+            if cascade:
+                edges_to_remove = [
+                    edge for edge in list(self._edges.values())
+                    if edge.from_node == node_id or edge.to_node == node_id
+                ]
+
+            # Stop agent session gracefully
+            try:
+                if self._agent_manager.is_running(node_id):
+                    await self._agent_manager.stop_agent(node_id)
+                    logger.info(f"Stopped agent session for node '{node_id}'")
+            except Exception as e:
+                logger.warning(f"Error stopping agent '{node_id}': {e}")
+                # Continue with removal even if stop fails
+
+            # Archive conversation files and remove edges
+            for edge in edges_to_remove:
+                try:
+                    await self._archive_edge_conversation(edge.edge_id)
+                except Exception as e:
+                    logger.warning(f"Error archiving conversation for edge '{edge.edge_id}': {e}")
+
+                # Update control relationships
+                if edge.from_node == node_id:
+                    # This node was a controller; mark subordinate's prompt dirty
+                    subordinate = self._nodes.get(edge.to_node)
+                    if subordinate:
+                        subordinate.prompt_dirty = True
+                        logger.debug(
+                            f"Marked subordinate '{edge.to_node}' prompt dirty "
+                            f"(lost controller '{node_id}')"
+                        )
+                elif edge.to_node == node_id:
+                    # This node was controlled; mark controller affected
+                    # (but they don't need prompt updates; the subordinate does)
+                    pass
+
+                # Remove edge from all structures
+                self._edges.pop(edge.edge_id, None)
+
+                # Clean up adjacency
+                if edge.from_node in self._adjacency:
+                    try:
+                        self._adjacency[edge.from_node].remove(edge.to_node)
+                    except ValueError:
+                        pass
+
+                if not edge.directed:
+                    # Undirected: clean reverse adjacency
+                    if edge.to_node in self._adjacency:
+                        try:
+                            self._adjacency[edge.to_node].remove(edge.from_node)
+                        except ValueError:
+                            pass
+
+                # Remove from NetworkX graph
+                try:
+                    self._nx_graph.remove_edge(edge.from_node, edge.to_node)
+                except nx.NetworkXError:
+                    pass  # Edge might have been removed already
+
+            # Remove node from all structures
+            self._nodes.pop(node_id, None)
+            self._adjacency.pop(node_id, None)
+
+            # Remove from NetworkX graph
+            try:
+                self._nx_graph.remove_node(node_id)
+            except nx.NetworkXError:
+                pass  # Node might have been removed already
+
+            logger.info(
+                f"Removed node '{node_id}' from graph '{self.name}' "
+                f"(cascade={cascade}, removed {len(edges_to_remove)} edges)"
+            )
+
+    async def _archive_edge_conversation(self, edge_id: str) -> None:
+        """
+        Archive the conversation file for an edge.
+
+        Moves the conversation file to the archived/ directory with a timestamp.
+        This preserves the conversation history for audit and debugging.
+
+        Args:
+            edge_id: ID of the edge whose conversation to archive
+        """
+        try:
+            await self.storage.archive_conversation(edge_id)
+            logger.debug(f"Archived conversation for edge '{edge_id}'")
+        except Exception as e:
+            logger.warning(f"Could not archive conversation for edge '{edge_id}': {e}")
+            raise

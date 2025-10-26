@@ -80,3 +80,19 @@ class StorageBackend(ABC):
             Size in bytes, or 0 if conversation doesn't exist
         """
         pass
+
+    @abstractmethod
+    async def archive_conversation(self, edge_id: str) -> None:
+        """
+        Archive a conversation file.
+
+        Moves the conversation file to an archived location with timestamp.
+        This preserves conversation history for audit and debugging.
+
+        Args:
+            edge_id: The edge identifier
+
+        Raises:
+            OSError: If archival operation fails
+        """
+        pass
