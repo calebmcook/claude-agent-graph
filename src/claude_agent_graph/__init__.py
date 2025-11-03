@@ -7,6 +7,12 @@ and maintain shared state through structured conversation channels.
 """
 
 from claude_agent_graph.agent_manager import AgentSessionManager
+from claude_agent_graph.checkpoint import (
+    Checkpoint,
+    CheckpointCorruptedError,
+    CheckpointError,
+    CheckpointVersionError,
+)
 from claude_agent_graph.exceptions import (
     AgentGraphError,
     AgentSessionError,
@@ -51,6 +57,11 @@ __all__ = [
     "ManualController",
     "ReactiveExecutor",
     "ProactiveExecutor",
+    # Checkpointing (Epic 7)
+    "Checkpoint",
+    "CheckpointError",
+    "CheckpointVersionError",
+    "CheckpointCorruptedError",
     # Data models
     "Message",
     "MessageRole",
