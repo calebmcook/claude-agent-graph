@@ -11,7 +11,7 @@ import logging
 from collections import defaultdict
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import networkx as nx
 
@@ -50,10 +50,10 @@ class AgentGraph:
         persistence_enabled: bool = True,
         topology_constraint: str | None = None,
         storage_backend: StorageBackend | str | None = None,
-        storage_path: Optional[Path | str] = None,
+        storage_path: Path | str | None = None,
         auto_save: bool = True,
         auto_save_interval: int = 300,
-        checkpoint_dir: Optional[Path | str] = None,
+        checkpoint_dir: Path | str | None = None,
     ):
         """
         Initialize an AgentGraph.
@@ -92,7 +92,7 @@ class AgentGraph:
             self.checkpoint_dir = Path(f"./checkpoints/{name}")
         else:
             self.checkpoint_dir = Path(checkpoint_dir)
-        self._auto_save_task: Optional[asyncio.Task] = None
+        self._auto_save_task: asyncio.Task | None = None
 
         # Internal data structures
         self._nodes: dict[str, Node] = {}
@@ -112,12 +112,14 @@ class AgentGraph:
         self._message_queues: dict[str, asyncio.Queue] = {}
         self._execution_mode = None
 
-        logger.debug(f"Created AgentGraph '{name}' with storage backend {type(self.storage).__name__}")
+        logger.debug(
+            f"Created AgentGraph '{name}' with storage backend {type(self.storage).__name__}"
+        )
 
     def _init_storage_backend(
         self,
         storage_backend: StorageBackend | str | None,
-        storage_path: Optional[Path | str],
+        storage_path: Path | str | None,
     ) -> StorageBackend:
         """
         Initialize storage backend from various input formats.
@@ -236,7 +238,7 @@ class AgentGraph:
                     metadata=metadata,
                 )
             except ValueError as e:
-                raise ValueError(f"Node validation failed: {e}")
+                raise ValueError(f"Node validation failed: {e}") from e
 
             # Store node
             self._nodes[node_id] = node
@@ -348,7 +350,7 @@ class AgentGraph:
                     properties=properties,
                 )
             except ValueError as e:
-                raise ValueError(f"Edge validation failed: {e}")
+                raise ValueError(f"Edge validation failed: {e}") from e
 
             # Store edge
             self._edges[edge_id] = edge
@@ -752,8 +754,7 @@ class AgentGraph:
 
         # Build controller list
         controller_lines = "\n".join(
-            f"  - Agent '{ctrl_id}' ({ctrl_type})"
-            for ctrl_id, ctrl_type in sorted(controllers)
+            f"  - Agent '{ctrl_id}' ({ctrl_type})" for ctrl_id, ctrl_type in sorted(controllers)
         )
 
         # Inject control information
@@ -1246,7 +1247,7 @@ Follow directives from your controllers while maintaining your specialized role.
             except (nx.NetworkXNoPath, nx.NodeNotFound):
                 raise EdgeNotFoundError(
                     f"No path exists between '{from_node}' and '{to_node}'"
-                )
+                ) from None
         else:
             # Validate provided path
             if len(path) < 2:
@@ -1348,18 +1349,18 @@ Follow directives from your controllers while maintaining your specialized role.
             response_text = ""
             async for response_msg in session.receive_response():
                 # Handle different message types from the response
-                if hasattr(response_msg, 'content'):
+                if hasattr(response_msg, "content"):
                     # AssistantMessage has content attribute (which is a list of content blocks)
                     content = response_msg.content
                     if isinstance(content, list):
                         # Content is a list of blocks - extract text from each
                         for block in content:
-                            if hasattr(block, 'text'):
+                            if hasattr(block, "text"):
                                 response_text += block.text
                     else:
                         # Content is a string
                         response_text += str(content)
-                elif hasattr(response_msg, 'text'):
+                elif hasattr(response_msg, "text"):
                     # TextBlock has text attribute
                     response_text += response_msg.text
 
@@ -1571,7 +1572,8 @@ Follow directives from your controllers while maintaining your specialized role.
             if not cascade:
                 # Get all connected edges
                 connected_edges = [
-                    edge for edge in self._edges.values()
+                    edge
+                    for edge in self._edges.values()
                     if edge.from_node == node_id or edge.to_node == node_id
                 ]
                 if connected_edges:
@@ -1586,7 +1588,8 @@ Follow directives from your controllers while maintaining your specialized role.
             edges_to_remove = []
             if cascade:
                 edges_to_remove = [
-                    edge for edge in list(self._edges.values())
+                    edge
+                    for edge in list(self._edges.values())
                     if edge.from_node == node_id or edge.to_node == node_id
                 ]
 
@@ -1903,9 +1906,7 @@ Follow directives from your controllers while maintaining your specialized role.
         old_control_type = edge.properties.get("control_type")
         new_control_type = properties.get("control_type")
         control_type_changed = (
-            edge.directed and
-            new_control_type is not None and
-            old_control_type != new_control_type
+            edge.directed and new_control_type is not None and old_control_type != new_control_type
         )
 
         # Merge properties
@@ -1926,7 +1927,7 @@ Follow directives from your controllers while maintaining your specialized role.
 
     # ==================== Checkpoint Operations (Epic 7) ====================
 
-    def save_checkpoint(self, filepath: Optional[Path | str] = None) -> Path:
+    def save_checkpoint(self, filepath: Path | str | None = None) -> Path:
         """
         Save graph state to a checkpoint file.
 
@@ -2017,8 +2018,10 @@ Follow directives from your controllers while maintaining your specialized role.
 
             logger.debug(f"Restored edge '{edge_id}'")
 
-        logger.info(f"Loaded checkpoint from {filepath} - "
-                   f"restored {len(graph._nodes)} nodes and {len(graph._edges)} edges")
+        logger.info(
+            f"Loaded checkpoint from {filepath} - "
+            f"restored {len(graph._nodes)} nodes and {len(graph._edges)} edges"
+        )
         return graph
 
     async def _auto_save_worker(self) -> None:
@@ -2128,7 +2131,8 @@ Follow directives from your controllers while maintaining your specialized role.
                 self._adjacency[edge.to_node].append(edge.from_node)
                 self._nx_graph.add_edge(edge.to_node, edge.from_node)
 
-        logger.info(f"Recovered graph state from {latest} - "
-                   f"restored {len(self._nodes)} nodes and {len(self._edges)} edges")
+        logger.info(
+            f"Recovered graph state from {latest} - "
+            f"restored {len(self._nodes)} nodes and {len(self._edges)} edges"
+        )
         return True
-

@@ -182,7 +182,7 @@ class ReactiveExecutor(ExecutionMode):
                         done, pending = await asyncio.wait(
                             monitor_tasks,
                             return_when=asyncio.FIRST_COMPLETED,
-                            timeout=1.0  # Check for new queues every second
+                            timeout=1.0,  # Check for new queues every second
                         )
 
                         # Cancel pending tasks
@@ -193,10 +193,14 @@ class ReactiveExecutor(ExecutionMode):
                         for task in done:
                             try:
                                 node_id, message = await task
-                                logger.debug(f"Reactive executor: processing {message.message_id} for '{node_id}'")
+                                logger.debug(
+                                    f"Reactive executor: processing {message.message_id} for '{node_id}'"
+                                )
 
                                 # Process the message with the agent (calls _process_message_with_agent)
-                                response = await self._graph._process_message_with_agent(node_id, message)
+                                response = await self._graph._process_message_with_agent(
+                                    node_id, message
+                                )
                                 if response:
                                     logger.debug(f"Agent '{node_id}' response: {response[:100]}...")
 

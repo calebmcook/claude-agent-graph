@@ -9,10 +9,8 @@ import asyncio
 import tempfile
 from pathlib import Path
 
-import pytest
-
 from claude_agent_graph import AgentGraph
-from claude_agent_graph.execution import ManualController, ReactiveExecutor
+from claude_agent_graph.execution import ManualController
 
 
 class TestCompleteWorkflows:
@@ -47,9 +45,7 @@ class TestCompleteWorkflows:
 
             # Supervisor broadcasts task
             await graph.broadcast(
-                "supervisor",
-                "Begin processing today's batch",
-                direction="outgoing"
+                "supervisor", "Begin processing today's batch", direction="outgoing"
             )
 
             # Verify each worker received the message
@@ -113,12 +109,8 @@ class TestCompleteWorkflows:
             )
 
             # Verify pipeline
-            research_to_analyst = await graph.get_conversation(
-                "researcher", "analyst"
-            )
-            analyst_to_writer = await graph.get_conversation(
-                "analyst", "writer"
-            )
+            research_to_analyst = await graph.get_conversation("researcher", "analyst")
+            analyst_to_writer = await graph.get_conversation("analyst", "writer")
 
             assert len(research_to_analyst) == 1
             assert len(analyst_to_writer) == 1
@@ -318,9 +310,7 @@ class TestPersistenceAndRecovery:
             # (In real crash, graph1 would be lost)
 
             # Recover from latest checkpoint
-            graph2 = await AgentGraph.load_latest_checkpoint(
-                str(checkpoint_dir)
-            )
+            graph2 = await AgentGraph.load_latest_checkpoint(str(checkpoint_dir))
 
             # Verify recovery
             assert graph2.node_count == 2
@@ -534,14 +524,11 @@ class TestLargeScaleOperations:
             # Create ring topology (each node connects to next)
             for i in range(100):
                 next_idx = (i + 1) % 100
-                await graph.add_edge(
-                    f"node{i}",
-                    f"node{next_idx}",
-                    directed=False
-                )
+                await graph.add_edge(f"node{i}", f"node{next_idx}", directed=False)
 
             # Add some random edges
             import random
+
             for _ in range(100):
                 n1 = f"node{random.randint(0, 99)}"
                 n2 = f"node{random.randint(0, 99)}"
@@ -581,11 +568,7 @@ class TestLargeScaleOperations:
             # Send many messages
             num_messages = 100  # Reduced for test performance
             for i in range(num_messages):
-                await graph.send_message(
-                    "sender",
-                    "receiver",
-                    f"Message {i}"
-                )
+                await graph.send_message("sender", "receiver", f"Message {i}")
 
             # Verify all messages
             messages = await graph.get_conversation("sender", "receiver")

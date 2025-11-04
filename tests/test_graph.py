@@ -8,8 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 
 from claude_agent_graph.backends import FilesystemBackend
-from claude_agent_graph.exceptions import AgentGraphError
-from claude_agent_graph.exceptions import CommandAuthorizationError
+from claude_agent_graph.exceptions import AgentGraphError, CommandAuthorizationError
 from claude_agent_graph.graph import (
     AgentGraph,
     DuplicateEdgeError,
@@ -33,12 +32,15 @@ def mock_claude_client():
 @pytest.fixture
 def mock_claude_sdk(mock_claude_client):
     """Mock the ClaudeSDKClient and ClaudeAgentOptions."""
-    with patch(
-        "claude_agent_graph.agent_manager.ClaudeSDKClient",
-        return_value=mock_claude_client,
-    ), patch(
-        "claude_agent_graph.agent_manager.ClaudeAgentOptions",
-        MagicMock(),
+    with (
+        patch(
+            "claude_agent_graph.agent_manager.ClaudeSDKClient",
+            return_value=mock_claude_client,
+        ),
+        patch(
+            "claude_agent_graph.agent_manager.ClaudeAgentOptions",
+            MagicMock(),
+        ),
     ):
         yield
 
@@ -186,7 +188,9 @@ class TestEdgeOperations:
 
     async def test_add_directed_edge(self, graph_with_nodes):
         """Test adding a directed edge."""
-        edge = await graph_with_nodes.add_edge(from_node="agent_1", to_node="agent_2", directed=True)
+        edge = await graph_with_nodes.add_edge(
+            from_node="agent_1", to_node="agent_2", directed=True
+        )
 
         assert edge.from_node == "agent_1"
         assert edge.to_node == "agent_2"
@@ -195,7 +199,9 @@ class TestEdgeOperations:
 
     async def test_add_undirected_edge(self, graph_with_nodes):
         """Test adding an undirected edge."""
-        edge = await graph_with_nodes.add_edge(from_node="agent_1", to_node="agent_2", directed=False)
+        edge = await graph_with_nodes.add_edge(
+            from_node="agent_1", to_node="agent_2", directed=False
+        )
 
         assert edge.directed is False
         assert graph_with_nodes.edge_count == 1
@@ -725,7 +731,9 @@ class TestControlRelationships:
         await graph.add_node("analyst", "You analyze data.")
 
         await graph.add_edge("cfo", "analyst", directed=True, control_type="supervisor")
-        await graph.add_edge("risk_officer", "analyst", directed=True, control_type="compliance_reviewer")
+        await graph.add_edge(
+            "risk_officer", "analyst", directed=True, control_type="compliance_reviewer"
+        )
 
         prompt = graph._compute_effective_prompt("analyst")
 
@@ -768,7 +776,9 @@ class TestControlRelationships:
         assert agent_b.prompt_dirty is False
 
     @pytest.mark.asyncio
-    async def test_activate_agent_lazy_recomputes_dirty_prompt(self, tmp_path: Path, mock_claude_sdk):
+    async def test_activate_agent_lazy_recomputes_dirty_prompt(
+        self, tmp_path: Path, mock_claude_sdk
+    ):
         """Test that _activate_agent_lazy recomputes dirty prompts."""
         graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
         await graph.add_node("supervisor", "You supervise.")
@@ -1282,7 +1292,6 @@ class TestNodeRemoval:
     async def test_remove_node_conversationfile_archived(self):
         """Test that archive_conversation is called when node is removed."""
         import tempfile
-        from pathlib import Path
         from unittest.mock import AsyncMock, patch
 
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -1297,7 +1306,9 @@ class TestNodeRemoval:
             edge = await graph.add_edge("node_a", "node_b", directed=True)
 
             # Mock the archive_conversation method to verify it's called
-            with patch.object(graph.storage, 'archive_conversation', new_callable=AsyncMock) as mock_archive:
+            with patch.object(
+                graph.storage, "archive_conversation", new_callable=AsyncMock
+            ) as mock_archive:
                 # Remove node to trigger archival
                 await graph.remove_node("node_a", cascade=True)
 
@@ -1552,7 +1563,7 @@ class TestEdgeRemoval:
         await graph.add_node("from", "From")
         await graph.add_node("to", "To")
 
-        edge = await graph.add_edge("from", "to", directed=True)
+        await graph.add_edge("from", "to", directed=True)
         assert graph.edge_exists("from", "to")
 
         await graph.remove_edge("from", "to")
@@ -1608,7 +1619,9 @@ class TestEdgeRemoval:
             edge = await graph.add_edge("node_a", "node_b", directed=True)
 
             # Mock the archive_conversation method
-            with patch.object(graph.storage, 'archive_conversation', new_callable=AsyncMock) as mock_archive:
+            with patch.object(
+                graph.storage, "archive_conversation", new_callable=AsyncMock
+            ) as mock_archive:
                 await graph.remove_edge("node_a", "node_b")
 
                 # Verify archive_conversation was called
@@ -1868,7 +1881,7 @@ class TestMessageRoutingPatterns:
 
         assert len(messages) == 3
         assert all(msg.from_node == "supervisor" for msg in messages)
-        assert set(msg.to_node for msg in messages) == {"worker_1", "worker_2", "worker_3"}
+        assert {msg.to_node for msg in messages} == {"worker_1", "worker_2", "worker_3"}
         assert all(msg.content == "Start working!" for msg in messages)
 
     @pytest.mark.asyncio
@@ -1918,7 +1931,7 @@ class TestMessageRoutingPatterns:
 
         messages_both = await graph.broadcast("center", "Message", include_incoming=True)
         assert len(messages_both) == 2
-        assert set(msg.to_node for msg in messages_both) == {"upstream", "downstream"}
+        assert {msg.to_node for msg in messages_both} == {"upstream", "downstream"}
 
     @pytest.mark.asyncio
     async def test_broadcast_nonexistent_node(self, tmp_path: Path) -> None:
@@ -2088,7 +2101,9 @@ class TestMessageRoutingPatterns:
             await graph.route_message("A", "C", "Message", path=["A", "nonexistent", "C"])
 
     @pytest.mark.asyncio
-    async def test_route_message_metadata_propagation(self, tmp_path: Path, mock_claude_sdk) -> None:
+    async def test_route_message_metadata_propagation(
+        self, tmp_path: Path, mock_claude_sdk
+    ) -> None:
         """Test that custom metadata is included in routed messages."""
         graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
         await graph.add_node("A", "A")
@@ -2099,9 +2114,7 @@ class TestMessageRoutingPatterns:
         await graph.add_edge("B", "C", directed=True)
 
         messages = await graph.route_message(
-            "A", "C", "Content",
-            priority="high",
-            request_id="req_123"
+            "A", "C", "Content", priority="high", request_id="req_123"
         )
 
         # All routed messages should have the custom metadata
@@ -2142,10 +2155,7 @@ class TestControlCommands:
         await graph.add_edge("controller", "agent", directed=True)
 
         msg = await graph.execute_command(
-            "controller", "agent", "process",
-            input_file="data.csv",
-            output_format="json",
-            threads=4
+            "controller", "agent", "process", input_file="data.csv", output_format="json", threads=4
         )
 
         params = msg.metadata.get("params")
@@ -2181,7 +2191,9 @@ class TestControlCommands:
         assert msg.metadata.get("authorization_level") == "oversight"
 
     @pytest.mark.asyncio
-    async def test_execute_command_default_control_type(self, tmp_path: Path, mock_claude_sdk) -> None:
+    async def test_execute_command_default_control_type(
+        self, tmp_path: Path, mock_claude_sdk
+    ) -> None:
         """Test default control_type when not specified in edge."""
         graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
         await graph.add_node("supervisor", "Supervisor")

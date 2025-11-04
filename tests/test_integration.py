@@ -12,8 +12,6 @@ from pathlib import Path
 import pytest
 
 from claude_agent_graph import AgentGraph
-from claude_agent_graph.backends import FilesystemBackend
-from claude_agent_graph.checkpoint import Checkpoint
 from claude_agent_graph.exceptions import (
     DuplicateEdgeError,
     NodeNotFoundError,
@@ -409,9 +407,7 @@ class TestConcurrency:
             # Send messages concurrently
             tasks = []
             for i, node in enumerate(nodes):
-                tasks.append(
-                    graph.send_message("center", node, f"Message {i}")
-                )
+                tasks.append(graph.send_message("center", node, f"Message {i}"))
 
             results = await asyncio.gather(*tasks)
 
