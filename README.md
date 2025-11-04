@@ -4,11 +4,11 @@
 
 **Build complex multi-agent AI systems with graph-structured Claude agents**
 
+[![Tests](https://github.com/calebmcook/claude-agent-graph/actions/workflows/test.yml/badge.svg)](https://github.com/calebmcook/claude-agent-graph/actions/workflows/test.yml)
+[![Documentation](https://github.com/calebmcook/claude-agent-graph/actions/workflows/docs.yml/badge.svg)](https://github.com/calebmcook/claude-agent-graph/actions/workflows/docs.yml)
 [![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
-[![Tests](https://img.shields.io/badge/tests-412%20passed-brightgreen)](tests/)
-[![Coverage](https://img.shields.io/badge/coverage-~85%25-green)](#testing)
 
 Create and orchestrate large-scale graphs of Claude AI agents using the [claude-agent-sdk](https://github.com/anthropics/claude-agent-sdk).
 
