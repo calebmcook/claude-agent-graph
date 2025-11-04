@@ -70,10 +70,18 @@ class AgentSessionManager:
         prompt = node.effective_system_prompt or node.system_prompt
 
         try:
-            options = ClaudeAgentOptions(
-                system_prompt=prompt,
-                model=node.model,
-            )
+            # Prepare options with metadata support
+            options_kwargs = {
+                "system_prompt": prompt,
+                "model": node.model,
+            }
+
+            # Pass through relevant metadata fields to ClaudeAgentOptions
+            # Map working_directory to cwd parameter
+            if "working_directory" in node.metadata:
+                options_kwargs["cwd"] = node.metadata["working_directory"]
+
+            options = ClaudeAgentOptions(**options_kwargs)
 
             client = ClaudeSDKClient(options=options)
             self._sessions[node_id] = client

@@ -21,7 +21,7 @@ from claude_agent_graph.exceptions import (
     DuplicateNodeError,
     EdgeNotFoundError,
     NodeNotFoundError,
-    TopologyValidationError,
+    TopologyViolationError,
 )
 from claude_agent_graph.execution import (
     ExecutionMode,
@@ -82,5 +82,5 @@ __all__ = [
     "EdgeNotFoundError",
     "DuplicateNodeError",
     "DuplicateEdgeError",
-    "TopologyValidationError",
+    "TopologyViolationError",
 ]

@@ -25,16 +25,11 @@ from .exceptions import (
     DuplicateNodeError,
     EdgeNotFoundError,
     NodeNotFoundError,
+    TopologyViolationError,
 )
 from .models import Edge, Message, Node
 
 logger = logging.getLogger(__name__)
-
-
-class TopologyViolationError(AgentGraphError):
-    """Raised when a graph operation violates topology constraints."""
-
-    pass
 
 
 class AgentGraph:
@@ -54,7 +49,8 @@ class AgentGraph:
         max_nodes: int = 10000,
         persistence_enabled: bool = True,
         topology_constraint: str | None = None,
-        storage_backend: StorageBackend | None = None,
+        storage_backend: StorageBackend | str | None = None,
+        storage_path: Optional[Path | str] = None,
         auto_save: bool = True,
         auto_save_interval: int = 300,
         checkpoint_dir: Optional[Path | str] = None,
@@ -68,20 +64,26 @@ class AgentGraph:
             persistence_enabled: Whether to enable persistence
             topology_constraint: Optional topology constraint
                 (e.g., "tree", "dag", "mesh", "chain", "star")
-            storage_backend: Storage backend for conversations (default: FilesystemBackend)
+            storage_backend: Storage backend for conversations. Can be:
+                - A StorageBackend instance
+                - A string: "filesystem" (default if None)
+                - None: uses FilesystemBackend with default path
+            storage_path: Path for storage backend (only used with string storage_backend)
             auto_save: Whether to enable automatic checkpointing (default: True)
             auto_save_interval: Seconds between auto-save checkpoints (default: 300)
             checkpoint_dir: Directory for checkpoint files (default: ./checkpoints/{name})
+
+        Raises:
+            ValueError: If storage_backend string is invalid or if storage_path is
+                provided with a StorageBackend instance
         """
         self.name = name
         self.max_nodes = max_nodes
         self.persistence_enabled = persistence_enabled
         self.topology_constraint = topology_constraint
 
-        # Set up storage backend (default to FilesystemBackend)
-        if storage_backend is None:
-            storage_backend = FilesystemBackend(base_dir=f"./conversations/{name}")
-        self.storage = storage_backend
+        # Set up storage backend with enhanced convenience parameters
+        self.storage = self._init_storage_backend(storage_backend, storage_path)
 
         # Checkpoint configuration (Epic 7)
         self.auto_save = auto_save
@@ -111,6 +113,59 @@ class AgentGraph:
         self._execution_mode = None
 
         logger.debug(f"Created AgentGraph '{name}' with storage backend {type(self.storage).__name__}")
+
+    def _init_storage_backend(
+        self,
+        storage_backend: StorageBackend | str | None,
+        storage_path: Optional[Path | str],
+    ) -> StorageBackend:
+        """
+        Initialize storage backend from various input formats.
+
+        Args:
+            storage_backend: Backend instance, string identifier, or None
+            storage_path: Optional path for filesystem backend
+
+        Returns:
+            Initialized StorageBackend instance
+
+        Raises:
+            ValueError: If invalid backend type or conflicting parameters
+        """
+        # Case 1: Already a StorageBackend instance
+        if isinstance(storage_backend, StorageBackend):
+            if storage_path is not None:
+                raise ValueError(
+                    "storage_path cannot be specified when storage_backend is a "
+                    "StorageBackend instance. Use the backend's constructor instead."
+                )
+            return storage_backend
+
+        # Case 2: String identifier (e.g., "filesystem")
+        if isinstance(storage_backend, str):
+            backend_type = storage_backend.lower()
+
+            # Validate backend type
+            valid_backends = ["filesystem"]
+            if backend_type not in valid_backends:
+                raise ValueError(
+                    f"Invalid storage backend: '{backend_type}'. "
+                    f"Valid options: {', '.join(valid_backends)}"
+                )
+
+            if backend_type == "filesystem":
+                base_dir = storage_path if storage_path else f"./conversations/{self.name}"
+                return FilesystemBackend(base_dir=base_dir)
+
+        # Case 3: None - use default
+        if storage_backend is None:
+            base_dir = storage_path if storage_path else f"./conversations/{self.name}"
+            return FilesystemBackend(base_dir=base_dir)
+
+        raise ValueError(
+            f"storage_backend must be a StorageBackend instance, string, or None. "
+            f"Got: {type(storage_backend)}"
+        )
 
     def __repr__(self) -> str:
         """Return string representation of the graph."""
