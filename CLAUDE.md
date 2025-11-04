@@ -217,6 +217,52 @@ await graph.send_message(
 )
 ```
 
+### Storage Configuration
+
+The `AgentGraph` supports flexible storage configuration:
+
+```python
+# Option 1: String backend with custom path
+graph = AgentGraph(
+    name="my_network",
+    storage_backend="filesystem",
+    storage_path="/custom/path"
+)
+
+# Option 2: String backend with default path (./conversations/{name})
+graph = AgentGraph(
+    name="my_network",
+    storage_backend="filesystem"
+)
+
+# Option 3: Custom path without specifying backend (uses filesystem)
+graph = AgentGraph(
+    name="my_network",
+    storage_path="/custom/path"
+)
+
+# Option 4: StorageBackend instance for advanced configuration
+from claude_agent_graph.backends import FilesystemBackend
+graph = AgentGraph(
+    name="my_network",
+    storage_backend=FilesystemBackend(base_dir="/custom/path", max_size_mb=100)
+)
+```
+
+### Node Metadata
+
+Nodes can include metadata that affects agent configuration:
+
+```python
+# Add node with working directory
+await graph.add_node(
+    node_id="worker",
+    system_prompt="You process files.",
+    working_directory="/path/to/workspace",  # Maps to agent's cwd
+    custom_metadata="value"  # Any additional metadata
+)
+```
+
 ### Message Structure
 All inter-agent messages follow this format in conversation files:
 ```json
