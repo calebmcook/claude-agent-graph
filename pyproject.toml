@@ -158,9 +158,6 @@ addopts = [
     "-v",
     "--strict-markers",
     "--strict-config",
-    "--cov=src/claude_agent_graph",
-    "--cov-report=term-missing",
-    "--cov-report=html",
 ]
 asyncio_mode = "auto"
 markers = [

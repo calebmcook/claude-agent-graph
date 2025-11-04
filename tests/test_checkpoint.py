@@ -10,7 +10,6 @@ Tests cover:
 
 import asyncio
 import tempfile
-from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -403,6 +402,7 @@ class TestAgentGraphCheckpointing:
 
             # Sleep briefly to ensure different timestamp
             import time
+
             time.sleep(0.01)
 
             await graph.add_node("node2", "Test2")
@@ -608,6 +608,7 @@ class TestCrashRecovery:
 
             # Create second checkpoint
             import time
+
             time.sleep(0.01)
             await graph.add_node("node2", "Second version")
             graph.save_checkpoint()

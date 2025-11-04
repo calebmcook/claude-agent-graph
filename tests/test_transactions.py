@@ -6,8 +6,6 @@ import tempfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-import pytest
-
 from claude_agent_graph.transactions import (
     Operation,
     RollbackManager,
@@ -275,6 +273,7 @@ class TestTransactionLog:
             assert len(lines) == 2
             # Each line should be valid JSON
             import json
+
             for line in lines:
                 data = json.loads(line)
                 assert "operation_type" in data
@@ -303,7 +302,9 @@ class TestTransactionLog:
             log = TransactionLog(str(log_path))
 
             op1 = Operation(operation_type="add_node", node_id="node_1", success=True)
-            op2 = Operation(operation_type="add_node", node_id="node_2", success=False, error="Failed")
+            op2 = Operation(
+                operation_type="add_node", node_id="node_2", success=False, error="Failed"
+            )
             op3 = Operation(operation_type="add_node", node_id="node_3", success=True)
 
             await log.append(op1)
@@ -535,7 +536,7 @@ class TestRollbackManager:
             log = TransactionLog(str(log_path))
             rm = RollbackManager(log)
 
-            for i in range(3):
+            for _i in range(3):
                 op = Operation(operation_type="add_node", success=True)
                 await log.append(op)
 

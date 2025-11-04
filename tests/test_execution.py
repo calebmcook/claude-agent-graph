@@ -19,12 +19,14 @@ from claude_agent_graph.models import Message
 @pytest.fixture
 def mock_claude_sdk(monkeypatch):
     """Mock the claude-agent-sdk to avoid API calls."""
+
     class MockClaudeSDKClient:
         def __init__(self, options):
             self.options = options
 
     # Mock the import
     import sys
+
     mock_module = type(sys)("mock_claude_agent_sdk")
     mock_module.ClaudeSDKClient = MockClaudeSDKClient
     mock_module.ClaudeAgentOptions = dict
@@ -124,7 +126,7 @@ class TestManualController:
             timestamp=datetime.now(timezone.utc),
             from_node="other",
             to_node="node_1",
-            content="Test"
+            content="Test",
         )
 
         # Create queue and add message
@@ -150,8 +152,12 @@ class TestManualController:
 
         # Add messages to some nodes
         ts = datetime.now(timezone.utc)
-        message1 = Message(message_id="msg_1", timestamp=ts, from_node="x", to_node="node_1", content="M1")
-        message2 = Message(message_id="msg_2", timestamp=ts, from_node="x", to_node="node_2", content="M2")
+        message1 = Message(
+            message_id="msg_1", timestamp=ts, from_node="x", to_node="node_1", content="M1"
+        )
+        message2 = Message(
+            message_id="msg_2", timestamp=ts, from_node="x", to_node="node_2", content="M2"
+        )
 
         queue1 = asyncio.Queue()
         queue2 = asyncio.Queue()
@@ -228,7 +234,13 @@ class TestReactiveExecutor:
         await asyncio.sleep(0.1)
 
         # Add a message to a queue
-        message = Message(message_id="msg_1", timestamp=datetime.now(timezone.utc), from_node="x", to_node="node_1", content="Test")
+        message = Message(
+            message_id="msg_1",
+            timestamp=datetime.now(timezone.utc),
+            from_node="x",
+            to_node="node_1",
+            content="Test",
+        )
         queue = asyncio.Queue()
         await queue.put(message)
         graph._message_queues["node_1"] = queue
@@ -269,8 +281,12 @@ class TestReactiveExecutor:
 
         # Add messages to multiple queues
         ts = datetime.now(timezone.utc)
-        msg1 = Message(message_id="msg_1", timestamp=ts, from_node="x", to_node="node_1", content="M1")
-        msg2 = Message(message_id="msg_2", timestamp=ts, from_node="x", to_node="node_2", content="M2")
+        msg1 = Message(
+            message_id="msg_1", timestamp=ts, from_node="x", to_node="node_1", content="M1"
+        )
+        msg2 = Message(
+            message_id="msg_2", timestamp=ts, from_node="x", to_node="node_2", content="M2"
+        )
 
         queue1 = asyncio.Queue()
         queue2 = asyncio.Queue()
@@ -339,6 +355,7 @@ class TestProactiveExecutor:
         executor = ProactiveExecutor(graph, interval=10.0, start_delay=0.2)
 
         import time
+
         start = time.time()
 
         await executor.start()
@@ -418,11 +435,13 @@ class TestIntegrationEndToEnd:
     """Integration tests for end-to-end message processing with execution modes."""
 
     @pytest.mark.asyncio
-    async def test_manual_controller_message_enqueuing(self, tmp_path: Path, mock_claude_sdk) -> None:
+    async def test_manual_controller_message_enqueuing(
+        self, tmp_path: Path, mock_claude_sdk
+    ) -> None:
         """Test that messages are enqueued when manual controller is active."""
         graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
-        supervisor = await graph.add_node("supervisor", "You are a supervisor")
-        worker = await graph.add_node("worker", "You are a worker")
+        await graph.add_node("supervisor", "You are a supervisor")
+        await graph.add_node("worker", "You are a worker")
         await graph.add_edge("supervisor", "worker", directed=True)
 
         # Start manual controller
@@ -446,11 +465,13 @@ class TestIntegrationEndToEnd:
         await controller.stop()
 
     @pytest.mark.asyncio
-    async def test_manual_controller_step_dequeues_message(self, tmp_path: Path, mock_claude_sdk) -> None:
+    async def test_manual_controller_step_dequeues_message(
+        self, tmp_path: Path, mock_claude_sdk
+    ) -> None:
         """Test that manual step dequeues messages from the queue."""
         graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
-        supervisor = await graph.add_node("supervisor", "You are a supervisor")
-        worker = await graph.add_node("worker", "You are a worker")
+        await graph.add_node("supervisor", "You are a supervisor")
+        await graph.add_node("worker", "You are a worker")
         await graph.add_edge("supervisor", "worker", directed=True)
 
         # Start manual controller
@@ -474,11 +495,13 @@ class TestIntegrationEndToEnd:
         await controller.stop()
 
     @pytest.mark.asyncio
-    async def test_reactive_executor_auto_processes_messages(self, tmp_path: Path, mock_claude_sdk) -> None:
+    async def test_reactive_executor_auto_processes_messages(
+        self, tmp_path: Path, mock_claude_sdk
+    ) -> None:
         """Test that reactive executor automatically processes queued messages."""
         graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
-        supervisor = await graph.add_node("supervisor", "You are a supervisor")
-        worker = await graph.add_node("worker", "You are a worker")
+        await graph.add_node("supervisor", "You are a supervisor")
+        await graph.add_node("worker", "You are a worker")
         await graph.add_edge("supervisor", "worker", directed=True)
 
         # Start reactive executor
@@ -500,11 +523,13 @@ class TestIntegrationEndToEnd:
         await executor.stop()
 
     @pytest.mark.asyncio
-    async def test_message_enqueuing_without_execution_mode(self, tmp_path: Path, mock_claude_sdk) -> None:
+    async def test_message_enqueuing_without_execution_mode(
+        self, tmp_path: Path, mock_claude_sdk
+    ) -> None:
         """Test that messages are NOT enqueued when no execution mode is active."""
         graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
-        supervisor = await graph.add_node("supervisor", "You are a supervisor")
-        worker = await graph.add_node("worker", "You are a worker")
+        await graph.add_node("supervisor", "You are a supervisor")
+        await graph.add_node("worker", "You are a worker")
         await graph.add_edge("supervisor", "worker", directed=True)
 
         # No execution mode started
@@ -520,8 +545,8 @@ class TestIntegrationEndToEnd:
     async def test_multiple_messages_preserve_order(self, tmp_path: Path, mock_claude_sdk) -> None:
         """Test that multiple messages preserve FIFO order in the queue."""
         graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
-        supervisor = await graph.add_node("supervisor", "You are a supervisor")
-        worker = await graph.add_node("worker", "You are a worker")
+        await graph.add_node("supervisor", "You are a supervisor")
+        await graph.add_node("worker", "You are a worker")
         await graph.add_edge("supervisor", "worker", directed=True)
 
         # Start manual controller
@@ -552,13 +577,15 @@ class TestIntegrationEndToEnd:
         await controller.stop()
 
     @pytest.mark.asyncio
-    async def test_broadcast_enqueues_to_multiple_recipients(self, tmp_path: Path, mock_claude_sdk) -> None:
+    async def test_broadcast_enqueues_to_multiple_recipients(
+        self, tmp_path: Path, mock_claude_sdk
+    ) -> None:
         """Test that broadcast sends messages to all recipients and enqueues them."""
         graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
-        supervisor = await graph.add_node("supervisor", "You are a supervisor")
-        worker1 = await graph.add_node("worker_1", "You are worker 1")
-        worker2 = await graph.add_node("worker_2", "You are worker 2")
-        worker3 = await graph.add_node("worker_3", "You are worker 3")
+        await graph.add_node("supervisor", "You are a supervisor")
+        await graph.add_node("worker_1", "You are worker 1")
+        await graph.add_node("worker_2", "You are worker 2")
+        await graph.add_node("worker_3", "You are worker 3")
 
         await graph.add_edge("supervisor", "worker_1", directed=True)
         await graph.add_edge("supervisor", "worker_2", directed=True)

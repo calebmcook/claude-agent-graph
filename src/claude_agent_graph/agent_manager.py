@@ -7,9 +7,10 @@ lifecycle (start, stop, restart) and error recovery with retry logic.
 
 import asyncio
 import logging
-from typing import TYPE_CHECKING, Any, Callable, Optional
+from collections.abc import Callable
+from typing import TYPE_CHECKING, Any
 
-from .exceptions import AgentGraphError, NodeNotFoundError
+from .exceptions import AgentGraphError
 from .models import NodeStatus
 
 if TYPE_CHECKING:

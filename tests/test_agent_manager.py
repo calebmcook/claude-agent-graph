@@ -8,16 +8,13 @@ Tests cover:
 - Status tracking and management
 """
 
-import asyncio
-from unittest.mock import AsyncMock, MagicMock, Mock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from claude_agent_graph.agent_manager import AgentSessionManager
 from claude_agent_graph.exceptions import AgentGraphError, NodeNotFoundError
 from claude_agent_graph.graph import AgentGraph
 from claude_agent_graph.models import NodeStatus
-
 
 # ==================== Fixtures ====================
 
@@ -282,8 +279,7 @@ class TestLifecycleManagement:
 
         assert agent_manager.get_running_count() == 0
         assert all(
-            graph.get_node(nid).status == NodeStatus.STOPPED
-            for nid in ["node1", "node2", "node3"]
+            graph.get_node(nid).status == NodeStatus.STOPPED for nid in ["node1", "node2", "node3"]
         )
 
 
@@ -302,9 +298,7 @@ class TestErrorRecovery:
         mock_client = AsyncMock()
 
         # Fail once, then succeed
-        mock_client.__aenter__ = AsyncMock(
-            side_effect=[Exception("Network error"), mock_client]
-        )
+        mock_client.__aenter__ = AsyncMock(side_effect=[Exception("Network error"), mock_client])
         mock_client.__aexit__ = AsyncMock(return_value=None)
         mock_client_class.return_value = mock_client
 
