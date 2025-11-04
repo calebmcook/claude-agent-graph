@@ -35,8 +35,8 @@ class DuplicateEdgeError(AgentGraphError):
     pass
 
 
-class TopologyValidationError(AgentGraphError):
-    """Raised when graph topology violates constraints."""
+class TopologyViolationError(AgentGraphError):
+    """Raised when a graph operation violates topology constraints."""
 
     pass
 

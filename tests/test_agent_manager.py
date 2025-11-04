@@ -74,7 +74,7 @@ class TestSessionCreation:
     async def test_create_session_with_metadata(
         self, mock_options_class, mock_client_class, graph, mock_claude_client
     ):
-        """Test session creation with node metadata (working_directory)."""
+        """Test session creation with node metadata (working_directory -> cwd)."""
         await graph.add_node(
             "node_with_wd",
             "Test prompt",
@@ -84,9 +84,9 @@ class TestSessionCreation:
 
         await graph._agent_manager.create_session("node_with_wd")
 
-        # Verify working_directory was passed to options
+        # Verify working_directory was mapped to cwd parameter in options
         call_kwargs = mock_options_class.call_args.kwargs
-        assert call_kwargs.get("working_directory") == "/tmp/test"
+        assert call_kwargs.get("cwd") == "/tmp/test"
 
     @patch("claude_agent_graph.agent_manager.ClaudeSDKClient")
     @patch("claude_agent_graph.agent_manager.ClaudeAgentOptions")

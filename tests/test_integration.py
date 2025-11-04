@@ -17,7 +17,7 @@ from claude_agent_graph.checkpoint import Checkpoint
 from claude_agent_graph.exceptions import (
     DuplicateEdgeError,
     NodeNotFoundError,
-    TopologyValidationError,
+    TopologyViolationError,
 )
 
 
@@ -250,7 +250,7 @@ class TestTopologyConstraints:
             await graph.add_edge("root", "child", directed=True)
 
             # Try to create a cycle (should fail)
-            with pytest.raises(TopologyValidationError):
+            with pytest.raises(TopologyViolationError):
                 await graph.add_edge("child", "root", directed=True)
 
     async def test_dag_topology_prevents_cycles(self):
@@ -271,7 +271,7 @@ class TestTopologyConstraints:
             await graph.add_edge("b", "c", directed=True)
 
             # Try to create a cycle (should fail)
-            with pytest.raises(TopologyValidationError):
+            with pytest.raises(TopologyViolationError):
                 await graph.add_edge("c", "a", directed=True)
 
 
