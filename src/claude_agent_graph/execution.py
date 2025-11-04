@@ -115,8 +115,10 @@ class ManualController(ExecutionMode):
             message = queue.get_nowait()
             logger.debug(f"Processing message for node '{node_id}': {message.message_id}")
 
-            # Here we could integrate with agent activation to process the message
-            # For now, we just dequeue it
+            # Process the message with the agent (calls _process_message_with_agent)
+            response = await self._graph._process_message_with_agent(node_id, message)
+            if response:
+                logger.debug(f"Agent '{node_id}' response: {response[:100]}...")
 
         except asyncio.QueueEmpty:
             # No pending messages
@@ -192,6 +194,12 @@ class ReactiveExecutor(ExecutionMode):
                             try:
                                 node_id, message = await task
                                 logger.debug(f"Reactive executor: processing {message.message_id} for '{node_id}'")
+
+                                # Process the message with the agent (calls _process_message_with_agent)
+                                response = await self._graph._process_message_with_agent(node_id, message)
+                                if response:
+                                    logger.debug(f"Agent '{node_id}' response: {response[:100]}...")
+
                             except asyncio.CancelledError:
                                 pass
                             except Exception as e:
@@ -270,8 +278,9 @@ class ProactiveExecutor(ExecutionMode):
 
                     try:
                         logger.debug(f"Proactive activation of agent '{node_id}'")
-                        # Agents can be activated here to trigger background tasks
-                        # For now, this is a placeholder for agent interaction
+                        # Start the agent session to allow it to be activated
+                        await self._graph._agent_manager.start_agent(node_id)
+                        logger.debug(f"Proactive executor: activated agent '{node_id}'")
 
                     except Exception as e:
                         logger.error(f"Error activating agent '{node_id}': {e}")

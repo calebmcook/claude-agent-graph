@@ -975,6 +975,10 @@ Follow directives from your controllers while maintaining your specialized role.
         # Append message to storage backend
         await self.storage.append_message(edge_id, message)
 
+        # Enqueue for execution mode if active (Epic 6)
+        if self._execution_mode:
+            await self._enqueue_message(to_node, message)
+
         logger.debug(f"Sent message {message.message_id}: {from_node} -> {to_node}")
         return message
 
@@ -1234,6 +1238,127 @@ Follow directives from your controllers while maintaining your specialized role.
             f"path={path}, hops={len(path) - 1}"
         )
         return messages
+
+    # ==================== Message Processing with Agents (Epic 6) ====================
+
+    async def _process_message_with_agent(
+        self,
+        node_id: str,
+        message: Message,
+    ) -> str | None:
+        """
+        Process a message by sending it to an agent and getting its response.
+
+        This is the critical bridge between message queues and agent execution.
+        Takes a message from the queue, sends it to the agent's session, and
+        returns the agent's response.
+
+        Args:
+            node_id: ID of the agent to process the message
+            message: The Message object to send to the agent
+
+        Returns:
+            The agent's response text, or None if processing fails
+
+        Raises:
+            NodeNotFoundError: If node doesn't exist
+            AgentGraphError: If agent session fails
+        """
+        if node_id not in self._nodes:
+            raise NodeNotFoundError(f"Node '{node_id}' not found")
+
+        node = self._nodes[node_id]
+
+        try:
+            # Ensure agent session is active
+            session = self._agent_manager._sessions.get(node_id)
+            if session is None:
+                logger.warning(f"Agent session for '{node_id}' not active")
+                return None
+
+            # Build the message content to send to the agent
+            # Include context about the sender and any metadata
+            full_content = message.content
+            if message.metadata.get("type") == "command":
+                # For commands, include command name and params in context
+                command_name = message.metadata.get("command", "unknown")
+                params = message.metadata.get("params", {})
+                full_content = f"[COMMAND: {command_name}] {message.content}\nParameters: {params}"
+
+            # Send message to agent and get response
+            # Using the ClaudeSDKClient query and receive_response pattern
+            await session.query(full_content)
+
+            # Collect the response from the agent
+            response_text = ""
+            async for response_msg in session.receive_response():
+                # Handle different message types from the response
+                if hasattr(response_msg, 'content'):
+                    # AssistantMessage has content attribute (which is a list of content blocks)
+                    content = response_msg.content
+                    if isinstance(content, list):
+                        # Content is a list of blocks - extract text from each
+                        for block in content:
+                            if hasattr(block, 'text'):
+                                response_text += block.text
+                    else:
+                        # Content is a string
+                        response_text += str(content)
+                elif hasattr(response_msg, 'text'):
+                    # TextBlock has text attribute
+                    response_text += response_msg.text
+
+            logger.debug(
+                f"Agent '{node_id}' processed message {message.message_id} "
+                f"from '{message.from_node}': received {len(response_text)} char response"
+            )
+
+            response = response_text
+
+            # Optionally: Store the agent's response back through the graph
+            # This would create a return message if we want bidirectional conversation
+            # For now, just return the response
+            return response
+
+        except Exception as e:
+            logger.error(
+                f"Error processing message {message.message_id} with agent '{node_id}': {e}",
+                exc_info=True,
+            )
+            # Update node status to ERROR
+            node.status = "ERROR"
+            return None
+
+    async def _enqueue_message(self, node_id: str, message: Message) -> None:
+        """
+        Enqueue a message for execution mode processing.
+
+        This is called by send_message() when an execution mode is active,
+        adding the message to the receiving node's queue for later processing.
+
+        Args:
+            node_id: ID of the receiving node
+            message: The Message to enqueue
+        """
+        # Lazily create queue for this node if it doesn't exist
+        if node_id not in self._message_queues:
+            self._message_queues[node_id] = asyncio.Queue(maxsize=1000)
+
+        try:
+            # Try to put the message in the queue
+            self._message_queues[node_id].put_nowait(message)
+            logger.debug(f"Enqueued message {message.message_id} for node '{node_id}'")
+        except asyncio.QueueFull:
+            # Queue is full - log warning and drop oldest message
+            logger.warning(f"Message queue full for node '{node_id}', dropping oldest message")
+            try:
+                # Drop the oldest message (FIFO) and enqueue the new one
+                self._message_queues[node_id].get_nowait()
+                self._message_queues[node_id].put_nowait(message)
+                logger.debug(f"Dropped oldest message, enqueued new message {message.message_id}")
+            except asyncio.QueueEmpty:
+                # Should not happen, but handle gracefully
+                pass
 
     # ==================== Async Context Manager (Epic 4) ====================
 
