@@ -9,13 +9,15 @@ and message routing.
 import asyncio
 import logging
 from collections import defaultdict
-from datetime import datetime
-from typing import Any
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Optional
 
 import networkx as nx
 
 from .agent_manager import AgentSessionManager
 from .backends import FilesystemBackend, StorageBackend
+from .checkpoint import Checkpoint, CheckpointError
 from .exceptions import (
     AgentGraphError,
     CommandAuthorizationError,
@@ -53,6 +55,9 @@ class AgentGraph:
         persistence_enabled: bool = True,
         topology_constraint: str | None = None,
         storage_backend: StorageBackend | None = None,
+        auto_save: bool = True,
+        auto_save_interval: int = 300,
+        checkpoint_dir: Optional[Path | str] = None,
     ):
         """
         Initialize an AgentGraph.
@@ -64,6 +69,9 @@ class AgentGraph:
             topology_constraint: Optional topology constraint
                 (e.g., "tree", "dag", "mesh", "chain", "star")
             storage_backend: Storage backend for conversations (default: FilesystemBackend)
+            auto_save: Whether to enable automatic checkpointing (default: True)
+            auto_save_interval: Seconds between auto-save checkpoints (default: 300)
+            checkpoint_dir: Directory for checkpoint files (default: ./checkpoints/{name})
         """
         self.name = name
         self.max_nodes = max_nodes
@@ -74,6 +82,15 @@ class AgentGraph:
         if storage_backend is None:
             storage_backend = FilesystemBackend(base_dir=f"./conversations/{name}")
         self.storage = storage_backend
+
+        # Checkpoint configuration (Epic 7)
+        self.auto_save = auto_save
+        self.auto_save_interval = auto_save_interval
+        if checkpoint_dir is None:
+            self.checkpoint_dir = Path(f"./checkpoints/{name}")
+        else:
+            self.checkpoint_dir = Path(checkpoint_dir)
+        self._auto_save_task: Optional[asyncio.Task] = None
 
         # Internal data structures
         self._nodes: dict[str, Node] = {}
@@ -1726,4 +1743,212 @@ Follow directives from your controllers while maintaining your specialized role.
 
         logger.info(f"Updated edge from '{from_node}' to '{to_node}' properties")
         logger.debug(f"Edge properties: {edge.properties}")
+
+    # ==================== Checkpoint Operations (Epic 7) ====================
+
+    def save_checkpoint(self, filepath: Optional[Path | str] = None) -> Path:
+        """
+        Save graph state to a checkpoint file.
+
+        Creates a checkpoint containing all nodes, edges, and metadata. Checkpoint
+        includes an integrity checksum for validation.
+
+        Args:
+            filepath: Path where checkpoint should be saved. If None, uses
+                     checkpoint_dir/{timestamp}.msgpack
+
+        Returns:
+            Path to saved checkpoint file
+
+        Raises:
+            CheckpointError: If save fails
+        """
+        if filepath is None:
+            self.checkpoint_dir.mkdir(parents=True, exist_ok=True)
+            timestamp = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S_%f")
+            filepath = self.checkpoint_dir / f"checkpoint_{timestamp}.msgpack"
+        else:
+            filepath = Path(filepath)
+
+        # Create checkpoint
+        metadata = {
+            "topology_constraint": self.topology_constraint,
+            "max_nodes": self.max_nodes,
+            "persistence_enabled": self.persistence_enabled,
+        }
+
+        checkpoint = Checkpoint(
+            name=self.name,
+            nodes=self._nodes,
+            edges=self._edges,
+            metadata=metadata,
+        )
+
+        # Save checkpoint
+        checkpoint.save(filepath)
+        logger.info(f"Saved checkpoint to {filepath}")
+        return filepath
+
+    @classmethod
+    def load_checkpoint(cls, filepath: Path | str) -> "AgentGraph":
+        """
+        Load graph from a checkpoint file.
+
+        Recreates a graph instance from a checkpoint, including all nodes and edges.
+        Restores agent sessions through AgentSessionManager.
+
+        Args:
+            filepath: Path to checkpoint file
+
+        Returns:
+            Reconstructed AgentGraph instance with all state restored
+
+        Raises:
+            CheckpointError: If load or validation fails
+        """
+        filepath = Path(filepath)
+
+        # Load checkpoint
+        checkpoint = Checkpoint.load(filepath)
+
+        # Create graph with metadata
+        graph = cls(
+            name=checkpoint.name,
+            max_nodes=checkpoint.metadata.get("max_nodes", 10000),
+            persistence_enabled=checkpoint.metadata.get("persistence_enabled", True),
+            topology_constraint=checkpoint.metadata.get("topology_constraint"),
+        )
+
+        # Restore nodes
+        for node_id, node in checkpoint.nodes.items():
+            graph._nodes[node_id] = node
+            graph._nx_graph.add_node(node_id)
+            logger.debug(f"Restored node '{node_id}'")
+
+        # Restore edges
+        for edge_id, edge in checkpoint.edges.items():
+            graph._edges[edge_id] = edge
+            graph._adjacency[edge.from_node].append(edge.to_node)
+            graph._nx_graph.add_edge(edge.from_node, edge.to_node)
+
+            if not edge.directed:
+                graph._adjacency[edge.to_node].append(edge.from_node)
+                graph._nx_graph.add_edge(edge.to_node, edge.from_node)
+
+            logger.debug(f"Restored edge '{edge_id}'")
+
+        logger.info(f"Loaded checkpoint from {filepath} - "
+                   f"restored {len(graph._nodes)} nodes and {len(graph._edges)} edges")
+        return graph
+
+    async def _auto_save_worker(self) -> None:
+        """
+        Background task that periodically saves checkpoints.
+
+        Runs periodically based on auto_save_interval and saves the current
+        graph state. Intended to run in background indefinitely until cancelled.
+
+        Raises:
+            asyncio.CancelledError: When task is cancelled
+        """
+        try:
+            while True:
+                await asyncio.sleep(self.auto_save_interval)
+                try:
+                    self.save_checkpoint()
+                except CheckpointError as e:
+                    logger.error(f"Auto-save failed: {e}")
+        except asyncio.CancelledError:
+            logger.debug("Auto-save worker cancelled")
+            raise
+
+    def start_auto_save(self) -> None:
+        """
+        Start the background auto-save task.
+
+        Creates and starts an asyncio task that periodically saves checkpoints.
+        Safe to call multiple times - existing task will be cancelled first.
+
+        Raises:
+            RuntimeError: If no event loop is running
+        """
+        # Cancel existing task if any
+        if self._auto_save_task is not None:
+            self._auto_save_task.cancel()
+
+        try:
+            loop = asyncio.get_running_loop()
+            self._auto_save_task = loop.create_task(self._auto_save_worker())
+            logger.info(f"Started auto-save worker (interval: {self.auto_save_interval}s)")
+        except RuntimeError as e:
+            logger.error(f"Cannot start auto-save: {e}")
+            raise
+
+    def stop_auto_save(self) -> None:
+        """
+        Stop the background auto-save task.
+
+        Safely cancels the auto-save task if it's running. Safe to call
+        even if auto-save was never started.
+        """
+        if self._auto_save_task is not None:
+            self._auto_save_task.cancel()
+            self._auto_save_task = None
+            logger.info("Stopped auto-save worker")
+
+    async def load_latest_checkpoint(self) -> bool:
+        """
+        Load the most recent checkpoint if one exists.
+
+        Searches checkpoint_dir for the newest checkpoint file and loads it.
+        Useful for recovery on startup.
+
+        Returns:
+            True if checkpoint was loaded, False if none found
+
+        Raises:
+            CheckpointError: If loading fails
+        """
+        if not self.checkpoint_dir.exists():
+            return False
+
+        # Find newest checkpoint
+        checkpoint_files = sorted(
+            self.checkpoint_dir.glob("checkpoint_*.msgpack"),
+            key=lambda p: p.stat().st_mtime,
+            reverse=True,
+        )
+
+        if not checkpoint_files:
+            return False
+
+        latest = checkpoint_files[0]
+        logger.info(f"Found checkpoint: {latest}")
+
+        # Note: load_checkpoint is a classmethod, so we can't use it directly
+        # in recovery context. Instead, we'll manually restore state.
+        checkpoint = Checkpoint.load(latest)
+
+        # Restore nodes and edges into current instance
+        self._nodes = checkpoint.nodes
+        self._edges = checkpoint.edges
+
+        # Rebuild NetworkX graph and adjacency
+        self._nx_graph = nx.DiGraph()
+        self._adjacency.clear()
+
+        for node_id in self._nodes:
+            self._nx_graph.add_node(node_id)
+
+        for edge in self._edges.values():
+            self._adjacency[edge.from_node].append(edge.to_node)
+            self._nx_graph.add_edge(edge.from_node, edge.to_node)
+
+            if not edge.directed:
+                self._adjacency[edge.to_node].append(edge.from_node)
+                self._nx_graph.add_edge(edge.to_node, edge.from_node)
+
+        logger.info(f"Recovered graph state from {latest} - "
+                   f"restored {len(self._nodes)} nodes and {len(self._edges)} edges")
+        return True
 
