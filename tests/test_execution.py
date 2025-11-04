@@ -412,3 +412,175 @@ class TestProactiveExecutor:
         await executor.stop()
 
         # Should have attempted to activate all nodes
+
+
+class TestIntegrationEndToEnd:
+    """Integration tests for end-to-end message processing with execution modes."""
+
+    @pytest.mark.asyncio
+    async def test_manual_controller_message_enqueuing(self, tmp_path: Path, mock_claude_sdk) -> None:
+        """Test that messages are enqueued when manual controller is active."""
+        graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
+        supervisor = await graph.add_node("supervisor", "You are a supervisor")
+        worker = await graph.add_node("worker", "You are a worker")
+        await graph.add_edge("supervisor", "worker", directed=True)
+
+        # Start manual controller
+        controller = ManualController(graph)
+        await controller.start()
+        graph._execution_mode = controller
+
+        # Send message - should enqueue it
+        msg = await graph.send_message("supervisor", "worker", "Do some work")
+
+        # Verify message is in queue
+        assert "worker" in graph._message_queues
+        queue = graph._message_queues["worker"]
+        assert not queue.empty()
+
+        # Verify the queued message is the same one we sent
+        queued_msg = queue.get_nowait()
+        assert queued_msg.message_id == msg.message_id
+        assert queued_msg.content == "Do some work"
+
+        await controller.stop()
+
+    @pytest.mark.asyncio
+    async def test_manual_controller_step_dequeues_message(self, tmp_path: Path, mock_claude_sdk) -> None:
+        """Test that manual step dequeues messages from the queue."""
+        graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
+        supervisor = await graph.add_node("supervisor", "You are a supervisor")
+        worker = await graph.add_node("worker", "You are a worker")
+        await graph.add_edge("supervisor", "worker", directed=True)
+
+        # Start manual controller
+        controller = ManualController(graph)
+        await controller.start()
+        graph._execution_mode = controller
+
+        # Send message
+        await graph.send_message("supervisor", "worker", "Process this")
+
+        # Verify message is queued
+        queue = graph._message_queues["worker"]
+        assert not queue.empty()
+
+        # Step the worker - should dequeue and process
+        await controller.step("worker")
+
+        # Queue should be empty after step
+        assert queue.empty()
+
+        await controller.stop()
+
+    @pytest.mark.asyncio
+    async def test_reactive_executor_auto_processes_messages(self, tmp_path: Path, mock_claude_sdk) -> None:
+        """Test that reactive executor automatically processes queued messages."""
+        graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
+        supervisor = await graph.add_node("supervisor", "You are a supervisor")
+        worker = await graph.add_node("worker", "You are a worker")
+        await graph.add_edge("supervisor", "worker", directed=True)
+
+        # Start reactive executor
+        executor = ReactiveExecutor(graph)
+        await executor.start()
+        graph._execution_mode = executor
+
+        # Send message
+        await graph.send_message("supervisor", "worker", "Work on this")
+
+        # Give executor time to process
+        await asyncio.sleep(0.2)
+
+        # Queue should be empty (message was processed)
+        if "worker" in graph._message_queues:
+            queue = graph._message_queues["worker"]
+            assert queue.empty()
+
+        await executor.stop()
+
+    @pytest.mark.asyncio
+    async def test_message_enqueuing_without_execution_mode(self, tmp_path: Path, mock_claude_sdk) -> None:
+        """Test that messages are NOT enqueued when no execution mode is active."""
+        graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
+        supervisor = await graph.add_node("supervisor", "You are a supervisor")
+        worker = await graph.add_node("worker", "You are a worker")
+        await graph.add_edge("supervisor", "worker", directed=True)
+
+        # No execution mode started
+        assert graph._execution_mode is None
+
+        # Send message
+        await graph.send_message("supervisor", "worker", "Do work")
+
+        # Queue should not be created when no execution mode is active
+        assert "worker" not in graph._message_queues
+
+    @pytest.mark.asyncio
+    async def test_multiple_messages_preserve_order(self, tmp_path: Path, mock_claude_sdk) -> None:
+        """Test that multiple messages preserve FIFO order in the queue."""
+        graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
+        supervisor = await graph.add_node("supervisor", "You are a supervisor")
+        worker = await graph.add_node("worker", "You are a worker")
+        await graph.add_edge("supervisor", "worker", directed=True)
+
+        # Start manual controller
+        controller = ManualController(graph)
+        await controller.start()
+        graph._execution_mode = controller
+
+        # Send multiple messages
+        msg1 = await graph.send_message("supervisor", "worker", "First task")
+        msg2 = await graph.send_message("supervisor", "worker", "Second task")
+        msg3 = await graph.send_message("supervisor", "worker", "Third task")
+
+        # Verify messages are in queue in order
+        queue = graph._message_queues["worker"]
+
+        queued_msg1 = queue.get_nowait()
+        assert queued_msg1.message_id == msg1.message_id
+        assert queued_msg1.content == "First task"
+
+        queued_msg2 = queue.get_nowait()
+        assert queued_msg2.message_id == msg2.message_id
+        assert queued_msg2.content == "Second task"
+
+        queued_msg3 = queue.get_nowait()
+        assert queued_msg3.message_id == msg3.message_id
+        assert queued_msg3.content == "Third task"
+
+        await controller.stop()
+
+    @pytest.mark.asyncio
+    async def test_broadcast_enqueues_to_multiple_recipients(self, tmp_path: Path, mock_claude_sdk) -> None:
+        """Test that broadcast sends messages to all recipients and enqueues them."""
+        graph = AgentGraph(name="test", storage_backend=FilesystemBackend(base_dir=str(tmp_path)))
+        supervisor = await graph.add_node("supervisor", "You are a supervisor")
+        worker1 = await graph.add_node("worker_1", "You are worker 1")
+        worker2 = await graph.add_node("worker_2", "You are worker 2")
+        worker3 = await graph.add_node("worker_3", "You are worker 3")
+
+        await graph.add_edge("supervisor", "worker_1", directed=True)
+        await graph.add_edge("supervisor", "worker_2", directed=True)
+        await graph.add_edge("supervisor", "worker_3", directed=True)
+
+        # Start manual controller
+        controller = ManualController(graph)
+        await controller.start()
+        graph._execution_mode = controller
+
+        # Broadcast message
+        messages = await graph.broadcast("supervisor", "Attention all workers!")
+
+        # Verify all workers have messages in queue
+        assert len(messages) == 3
+        assert "worker_1" in graph._message_queues
+        assert "worker_2" in graph._message_queues
+        assert "worker_3" in graph._message_queues
+
+        # Each queue should have exactly one message
+        assert not graph._message_queues["worker_1"].empty()
+        assert not graph._message_queues["worker_2"].empty()
+        assert not graph._message_queues["worker_3"].empty()
+
+        await controller.stop()
