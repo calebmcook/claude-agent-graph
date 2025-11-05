@@ -381,6 +381,56 @@ Provide a focused, concise response addressing this task. Be specific and action
         self.messages[agent_id].append(agent_response)
         return agent_response
 
+    async def chat_with_supervisor(self, user_message: str) -> str:
+        """Have a conversation with the supervisor."""
+        logger.info(f"User message to supervisor: {user_message[:100]}...")
+
+        # Create or reuse supervisor session
+        if "supervisor_chat" not in self.agent_sessions:
+            supervisor_options = ClaudeAgentOptions(
+                system_prompt="""You are an expert supervisor coordinating a team of AI agents to solve complex problems.
+You can ask clarifying questions, provide guidance, and help refine the problem-solving approach.
+Be conversational, helpful, and ask follow-up questions when needed to better understand the user's needs.""",
+                model="claude-haiku-4-5-20251001",
+                max_turns=1
+            )
+            self.agent_sessions["supervisor_chat"] = ClaudeSDKClient(supervisor_options)
+
+        session = self.agent_sessions["supervisor_chat"]
+
+        # Use the SDK properly
+        async with session:
+            await session.query(user_message)
+            response_text = ""
+            message_count = 0
+            async for message in session.receive_messages():
+                message_count += 1
+                logger.debug(f"Supervisor chat message {message_count}: {type(message).__name__}")
+
+                # Check if this is an AssistantMessage (the actual response)
+                if type(message).__name__ == 'AssistantMessage':
+                    if hasattr(message, 'content') and message.content:
+                        content = message.content
+                        if isinstance(content, str):
+                            response_text += content
+                        elif isinstance(content, list):
+                            # Extract text from content blocks
+                            for block in content:
+                                if hasattr(block, 'text'):
+                                    response_text += block.text
+                    # Once we have the assistant response, stop waiting for more messages
+                    logger.debug("Got AssistantMessage from supervisor, breaking")
+                    break
+
+        if "supervisor" not in self.messages:
+            self.messages["supervisor"] = []
+        self.messages["supervisor"].append({
+            "role": "assistant",
+            "content": response_text
+        })
+        logger.info(f"Supervisor response: {response_text[:100]}...")
+        return response_text
+
     def _get_graph_state(self) -> dict:
         """Get current graph state as JSON."""
         if not self.graph:
@@ -524,6 +574,34 @@ def agent_response():
         })
     except Exception as e:
         logger.error(f"Error getting agent response: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/supervisor-chat", methods=["POST"])
+def supervisor_chat():
+    """Chat with the supervisor."""
+    data = request.json
+    user_message = data.get("message")
+
+    if not user_message:
+        return jsonify({"error": "Message is required"}), 400
+
+    logger.info(f"Supervisor chat request: {user_message[:50]}...")
+
+    try:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+        response = loop.run_until_complete(manager.chat_with_supervisor(user_message))
+        loop.close()
+
+        return jsonify({
+            "role": "supervisor",
+            "message": user_message,
+            "response": response,
+            "timestamp": datetime.now().isoformat()
+        })
+    except Exception as e:
+        logger.error(f"Error in supervisor chat: {e}")
         return jsonify({"error": str(e)}), 500
 
 

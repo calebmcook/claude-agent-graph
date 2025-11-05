@@ -266,6 +266,92 @@
         }
 
         .agent-item strong { color: #667eea; }
+
+        .supervisor-chat-section {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding: 15px;
+            background-color: #fff5f5;
+            border: 2px solid #ff6b6b;
+            border-radius: 8px;
+            margin-top: 15px;
+        }
+
+        .supervisor-chat-section h3 {
+            color: #ff6b6b;
+            margin: 0;
+            font-size: 14px;
+        }
+
+        .supervisor-chat-messages {
+            background-color: white;
+            border: 1px solid #ff6b6b;
+            border-radius: 6px;
+            max-height: 250px;
+            overflow-y: auto;
+            padding: 10px;
+            margin-bottom: 10px;
+        }
+
+        .supervisor-chat-messages .message {
+            margin-bottom: 10px;
+            padding: 8px;
+            border-radius: 6px;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+
+        .supervisor-chat-messages .message.user {
+            background-color: #e7f3ff;
+            border-left: 3px solid #667eea;
+            text-align: right;
+        }
+
+        .supervisor-chat-messages .message.supervisor {
+            background-color: #ffe7e7;
+            border-left: 3px solid #ff6b6b;
+        }
+
+        .supervisor-input-group {
+            display: flex;
+            gap: 8px;
+        }
+
+        .supervisor-input-group input {
+            flex: 1;
+            padding: 10px;
+            border: 1px solid #ff6b6b;
+            border-radius: 6px;
+            font-size: 12px;
+        }
+
+        .supervisor-input-group input:focus {
+            outline: none;
+            border-color: #ff5252;
+            box-shadow: 0 0 0 2px rgba(255, 107, 107, 0.1);
+        }
+
+        .supervisor-input-group button {
+            padding: 10px 16px;
+            background-color: #ff6b6b;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 12px;
+            transition: background-color 0.3s;
+        }
+
+        .supervisor-input-group button:hover {
+            background-color: #ff5252;
+        }
+
+        .supervisor-input-group button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+        }
     </style>
 </head>
 <body>
@@ -307,6 +393,21 @@
 
                 <h3 style="margin: 15px 0 10px 0; color: #333;">Chat History</h3>
                 <div class="chat-container" id="chatContainer"></div>
+
+                <div class="supervisor-chat-section">
+                    <h3>💬 Chat with Supervisor</h3>
+                    <p style="margin: 0 0 10px 0; color: #666; font-size: 11px;">Ask the supervisor questions or refine the problem-solving approach</p>
+                    <div class="supervisor-chat-messages" id="supervisorChatMessages"></div>
+                    <div class="supervisor-input-group">
+                        <input
+                            type="text"
+                            id="supervisorInput"
+                            placeholder="Ask supervisor a question..."
+                            onkeypress="if(event.key==='Enter') sendSupervisorMessage()"
+                        />
+                        <button id="supervisorSendBtn" onclick="sendSupervisorMessage()">Send</button>
+                    </div>
+                </div>
             </div>
         </div>
 
@@ -358,6 +459,10 @@
                 const initData = await initRes.json();
                 currentGraph = initData.graph;
                 updateVisualization();
+
+                // Enable supervisor chat input
+                document.getElementById('supervisorInput').disabled = false;
+                document.getElementById('supervisorSendBtn').disabled = false;
 
                 addStatusMessage('✓ Supervisor created', 'success');
                 addStatusMessage('Supervisor analyzing problem...', 'loading');
@@ -602,9 +707,65 @@
             }
         }
 
+        async function sendSupervisorMessage() {
+            const input = document.getElementById('supervisorInput');
+            const message = input.value.trim();
+
+            if (!message) {
+                return;
+            }
+
+            const sendBtn = document.getElementById('supervisorSendBtn');
+            sendBtn.disabled = true;
+            input.disabled = true;
+
+            try {
+                // Add user message to chat
+                addSupervisorChatMessage('user', message);
+                input.value = '';
+
+                // Send to supervisor
+                const response = await fetch('/api/supervisor-chat', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ message })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Failed to get supervisor response: ${response.status}`);
+                }
+
+                const data = await response.json();
+                console.log('Supervisor response:', data);
+
+                // Add supervisor response to chat
+                addSupervisorChatMessage('supervisor', data.response);
+
+            } catch (error) {
+                console.error('Error sending supervisor message:', error);
+                addSupervisorChatMessage('supervisor', `Error: ${error.message}`);
+            } finally {
+                sendBtn.disabled = false;
+                input.disabled = false;
+                input.focus();
+            }
+        }
+
+        function addSupervisorChatMessage(sender, message) {
+            const container = document.getElementById('supervisorChatMessages');
+            const msg = document.createElement('div');
+            msg.className = `message ${sender}`;
+            msg.textContent = message;
+            container.appendChild(msg);
+            container.scrollTop = container.scrollHeight;
+        }
+
         // Initialize
         document.addEventListener('DOMContentLoaded', () => {
             updateVisualization();
+            // Disable supervisor input until a graph is initialized
+            document.getElementById('supervisorInput').disabled = true;
+            document.getElementById('supervisorSendBtn').disabled = true;
         });
     </script>
 </body>

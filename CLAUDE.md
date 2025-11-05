@@ -239,3 +239,4 @@ All inter-agent messages follow this format in conversation files:
 - <100MB memory overhead per 100 agents
 - 99.9% message delivery reliability
 - always allow python and bash
+- Always clean up old background Flask server processes when not in use.
