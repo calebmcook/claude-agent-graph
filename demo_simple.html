@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Agent Graph Demo - Collaborative Problem Solving</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        #container {
+            max-width: 1600px;
+            margin: 0 auto;
+            background-color: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+        .header h1 { font-size: 28px; margin-bottom: 10px; }
+        .main-content {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            padding: 20px;
+        }
+        .section { display: flex; flex-direction: column; }
+        .controls {
+            margin-bottom: 20px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 8px;
+        }
+        button {
+            padding: 10px 16px;
+            margin-right: 8px;
+            background-color: #667eea;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+        }
+        button:hover { background-color: #5568d3; }
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+        #visualization {
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            background-color: #fafbfc;
+            min-height: 600px;
+        }
+        svg { width: 100%; height: 600px; }
+        .node { stroke: #333; stroke-width: 2px; }
+        .node.thinking { animation: pulse 1s infinite; }
+        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.6; } }
+        .node.active { stroke-width: 4px; stroke: #ff6b6b; }
+        .link { stroke: #ddd; stroke-opacity: 0.6; stroke-width: 2px; }
+        .link.active { stroke: #ff6b6b; stroke-width: 4px; animation: flash 0.5s; }
+        @keyframes flash { 0%, 100% { stroke-opacity: 1; } 50% { stroke-opacity: 0.3; } }
+        .node-label { font-size: 11px; font-weight: 600; pointer-events: none; text-anchor: middle; }
+        .frame-info {
+            padding: 15px;
+            background-color: #fff3cd;
+            border-radius: 8px;
+            border-left: 4px solid #ffc107;
+            margin-bottom: 15px;
+        }
+        .frame-info h3 { margin: 0 0 5px 0; color: #856404; font-size: 14px; }
+        .frame-info p { margin: 0; color: #856404; font-size: 12px; }
+        .chat-container {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 15px;
+            max-height: 600px;
+            overflow-y: auto;
+        }
+        .chat-window {
+            background-color: white;
+            border: 1px solid #e9ecef;
+            border-radius: 8px;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        .chat-header {
+            background-color: #667eea;
+            color: white;
+            padding: 10px;
+            font-weight: 600;
+            font-size: 12px;
+        }
+        .chat-header.supervisor { background-color: #ff6b6b; }
+        .chat-messages {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+            font-size: 11px;
+            max-height: 300px;
+        }
+        .message {
+            margin-bottom: 8px;
+            padding: 8px;
+            border-radius: 6px;
+            line-height: 1.4;
+        }
+        .message.sent { background-color: #e7f3ff; border-left: 3px solid #667eea; }
+        .message.received { background-color: #f0f0f0; border-left: 3px solid #999; }
+        .message-label { font-weight: 600; color: #333; margin-bottom: 3px; }
+        .metrics {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin: 20px;
+            background-color: #f8f9fa;
+            padding: 15px;
+        }
+        .metric-item { background-color: white; padding: 12px; border-radius: 6px; border-left: 4px solid #667eea; text-align: center; }
+        .metric-label { font-size: 11px; color: #666; font-weight: 600; margin-bottom: 5px; }
+        .metric-value { font-size: 20px; color: #667eea; font-weight: 700; }
+        .slider-container { margin: 15px 0; }
+        #frameSlider { width: 100%; height: 6px; cursor: pointer; }
+        .frame-counter { text-align: center; margin: 10px 0; font-weight: 600; color: #667eea; font-size: 13px; }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div class="header">
+            <h1>🤖 Agent Graph: Collaborative Problem Solving</h1>
+            <p>A supervisor delegates a problem to 4 research agents who collaborate to find a solution</p>
+        </div>
+
+        <div class="main-content">
+            <div class="section">
+                <div class="controls">
+                    <button id="playBtn" onclick="play()">▶ Play</button>
+                    <button id="pauseBtn" onclick="pause()" disabled>⏸ Pause</button>
+                    <button id="resetBtn" onclick="reset()">↻ Reset</button>
+
+                    <div class="slider-container">
+                        <label for="frameSlider">Timeline:</label>
+                        <input type="range" id="frameSlider" min="0" max="14" value="0" onchange="goToFrame(this.value)">
+                    </div>
+                    <div class="frame-counter"><span id="frameCounter">Frame 1 of 15</span></div>
+                </div>
+
+                <div id="visualization"></div>
+
+                <div class="frame-info">
+                    <h3 id="frameTitle">Frame 0: Problem Assignment</h3>
+                    <p id="frameDescription">Loading...</p>
+                </div>
+            </div>
+
+            <div class="section">
+                <h3 style="margin-bottom: 15px; color: #333;">Agent Chat Windows</h3>
+                <div class="chat-container" id="chatContainer">
+                    <div class="chat-window">
+                        <div class="chat-header supervisor">Supervisor</div>
+                        <div class="chat-messages" id="messages_supervisor"></div>
+                    </div>
+                    <div class="chat-window">
+                        <div class="chat-header">Agent A (Literature)</div>
+                        <div class="chat-messages" id="messages_agent_a"></div>
+                    </div>
+                    <div class="chat-window">
+                        <div class="chat-header">Agent B (Data)</div>
+                        <div class="chat-messages" id="messages_agent_b"></div>
+                    </div>
+                    <div class="chat-window">
+                        <div class="chat-header">Agent C (Methodology)</div>
+                        <div class="chat-messages" id="messages_agent_c"></div>
+                    </div>
+                    <div class="chat-window">
+                        <div class="chat-header">Agent D (Systems)</div>
+                        <div class="chat-messages" id="messages_agent_d"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="metrics">
+            <div class="metric-item">
+                <div class="metric-label">Total Nodes</div>
+                <div class="metric-value">5</div>
+            </div>
+            <div class="metric-item">
+                <div class="metric-label">Total Edges</div>
+                <div class="metric-value">8</div>
+            </div>
+            <div class="metric-item">
+                <div class="metric-label">Messages</div>
+                <div class="metric-value" id="messageCount">0</div>
+            </div>
+            <div class="metric-item">
+                <div class="metric-label">Avg Degree</div>
+                <div class="metric-value">3.2</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const frames = [
+            {
+                title: "Frame 0: Problem Assignment",
+                description: "Supervisor presents the problem to the team",
+                message: null,
+                thinking: []
+            },
+            {
+                title: "Frame 1: Supervisor Delegates to Literature Specialist",
+                description: "📨 supervisor → agent_a: 'Please conduct a literature review'",
+                message: { from: "supervisor", to: "agent_a", content: "Please conduct a thorough literature review on the problem and identify key research." },
+                thinking: ["agent_a"]
+            },
+            {
+                title: "Frame 2: Agent A Completes Literature Review",
+                description: "📨 agent_a → supervisor: Sharing findings from literature review",
+                message: { from: "agent_a", to: "supervisor", content: "I've completed a literature review. Key findings: (1) Previous research shows similar approaches, (2) Current best practices indicate we should focus on X, (3) There are 3 promising methodologies to explore." },
+                thinking: ["agent_a"]
+            },
+            {
+                title: "Frame 3: Supervisor Delegates to Data Analyst",
+                description: "📨 supervisor → agent_b: 'Analyze data related to this problem'",
+                message: { from: "supervisor", to: "agent_b", content: "Analyze the available data and identify patterns that could help solve this problem." },
+                thinking: ["agent_b"]
+            },
+            {
+                title: "Frame 4: Agent B Completes Data Analysis",
+                description: "📨 agent_b → supervisor: Sharing data insights",
+                message: { from: "agent_b", to: "supervisor", content: "Data analysis complete. We have 5000 relevant data points. Initial patterns suggest Y is the strongest factor (87% confidence). Z also shows correlation at 65%." },
+                thinking: ["agent_b"]
+            },
+            {
+                title: "Frame 5: Agents A & B Collaborate",
+                description: "📨 agent_a ↔ agent_b: Exchanging literature and data insights",
+                message: { from: "agent_a", to: "agent_b", content: "Your data correlates well with the methodology I found in literature. The pattern you identified aligns with research findings. Should we combine our insights?" },
+                thinking: ["agent_a", "agent_b"]
+            },
+            {
+                title: "Frame 6: Supervisor Delegates to Methodology Expert",
+                description: "📨 supervisor → agent_c: 'Design the methodology'",
+                message: { from: "supervisor", to: "agent_c", content: "Design the methodology to address this problem. Consider the literature insights and data patterns we've identified." },
+                thinking: ["agent_c"]
+            },
+            {
+                title: "Frame 7: Agent C Designs Methodology",
+                description: "📨 agent_c → supervisor: Proposing solution approach",
+                message: { from: "agent_c", to: "supervisor", content: "Methodology proposal: A two-phase approach would be optimal. Phase 1 focuses on hypothesis testing using data from agent_b. Phase 2 implements the solution with iterative refinement based on feedback." },
+                thinking: ["agent_c"]
+            },
+            {
+                title: "Frame 8: Supervisor Delegates to Systems Thinker",
+                description: "📨 supervisor → agent_d: 'Ensure holistic solution'",
+                message: { from: "supervisor", to: "agent_d", content: "Analyze if this solution works holistically. Check for dependencies, potential bottlenecks, and cross-system impacts." },
+                thinking: ["agent_d"]
+            },
+            {
+                title: "Frame 9: Agent D Provides Systems Analysis",
+                description: "📨 agent_d → supervisor: Systems-level validation",
+                message: { from: "agent_d", to: "supervisor", content: "Systems analysis complete. The solution integrates well across 3 different contexts. Potential bottlenecks identified at stages 2 and 4, but both are manageable with proper resource allocation." },
+                thinking: ["agent_d"]
+            },
+            {
+                title: "Frame 10: Methodology & Systems Thinking Collaborate",
+                description: "📨 agent_c ↔ agent_d: Refining the approach",
+                message: { from: "agent_c", to: "agent_d", content: "How does the systems perspective affect our two-phase methodology? Should we adjust the timing or sequencing?" },
+                thinking: ["agent_c", "agent_d"]
+            },
+            {
+                title: "Frame 11: Data Analyst & Literature Specialist Collaborate",
+                description: "📨 agent_b ↔ agent_a: Full integration discussion",
+                message: { from: "agent_b", to: "agent_a", content: "The data strongly supports the literature-based approach. Should we integrate this into the final methodology? The patterns align perfectly with what you found." },
+                thinking: ["agent_a", "agent_b", "agent_c", "agent_d"]
+            },
+            {
+                title: "Frame 12: Final Solution Presented",
+                description: "📨 All agents → supervisor: Integrated solution ready",
+                message: { from: "agent_c", to: "supervisor", content: "After full collaboration, here's the integrated solution: Two-phase implementation combining literature insights, data analysis, systems validation, and methodology design. All teams aligned on approach and ready for execution." },
+                thinking: []
+            },
+            {
+                title: "Frame 13: Supervisor Synthesizes Final Solution",
+                description: "Supervisor approves and documents the collaborative solution",
+                message: { from: "supervisor", to: "agent_a", content: "Excellent collaboration! I'm synthesizing your findings into the final strategic approach. This integrated solution combining literature, data, methodology, and systems thinking provides comprehensive coverage of the problem space." },
+                thinking: ["supervisor"]
+            },
+            {
+                title: "Frame 14: Problem Solved",
+                description: "Agent collaboration successfully solved the problem!",
+                message: null,
+                thinking: []
+            }
+        ];
+
+        let currentFrame = 0;
+        let isPlaying = false;
+        let playInterval = null;
+
+        function addMessageToChat(fromNode, toNode, content) {
+            const fromChat = document.getElementById('messages_' + fromNode);
+            if (fromChat) {
+                const msgDiv = document.createElement('div');
+                msgDiv.className = 'message sent';
+                msgDiv.innerHTML = '<div class="message-label">To ' + toNode.replace('_', ' ').toUpperCase() + ':</div>' +
+                                   '<div class="message-content">' + escapeHtml(content) + '</div>';
+                fromChat.appendChild(msgDiv);
+                fromChat.scrollTop = fromChat.scrollHeight;
+            }
+
+            const toChat = document.getElementById('messages_' + toNode);
+            if (toChat) {
+                const msgDiv = document.createElement('div');
+                msgDiv.className = 'message received';
+                msgDiv.innerHTML = '<div class="message-label">From ' + fromNode.replace('_', ' ').toUpperCase() + ':</div>' +
+                                   '<div class="message-content">' + escapeHtml(content) + '</div>';
+                toChat.appendChild(msgDiv);
+                toChat.scrollTop = toChat.scrollHeight;
+            }
+        }
+
+        function escapeHtml(text) {
+            const map = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#039;' };
+            return text.replace(/[&<>"']/g, m => map[m]);
+        }
+
+        function goToFrame(frameIndex) {
+            currentFrame = parseInt(frameIndex);
+            const frame = frames[currentFrame];
+
+            document.getElementById('frameTitle').textContent = frame.title;
+            document.getElementById('frameDescription').textContent = frame.description;
+            document.getElementById('frameCounter').textContent = `Frame ${currentFrame + 1} of ${frames.length}`;
+            document.getElementById('messageCount').textContent = currentFrame;
+
+            if (frame.message) {
+                addMessageToChat(frame.message.from, frame.message.to, frame.message.content);
+            }
+
+            visualizeGraph(currentFrame);
+        }
+
+        function visualizeGraph(frameIndex) {
+            const nodes = [
+                { id: "supervisor", label: "Supervisor", type: "supervisor", x: 400, y: 100 },
+                { id: "agent_a", label: "Agent A\nLiterature", type: "agent", x: 200, y: 300 },
+                { id: "agent_b", label: "Agent B\nData", type: "agent", x: 600, y: 300 },
+                { id: "agent_c", label: "Agent C\nMethodology", type: "agent", x: 200, y: 500 },
+                { id: "agent_d", label: "Agent D\nSystems", type: "agent", x: 600, y: 500 }
+            ];
+
+            const links = [
+                { source: "supervisor", target: "agent_a" },
+                { source: "supervisor", target: "agent_b" },
+                { source: "supervisor", target: "agent_c" },
+                { source: "supervisor", target: "agent_d" },
+                { source: "agent_a", target: "agent_b" },
+                { source: "agent_b", target: "agent_c" },
+                { source: "agent_c", target: "agent_d" },
+                { source: "agent_d", target: "agent_a" }
+            ];
+
+            const frame = frames[frameIndex];
+
+            d3.select('#visualization').selectAll('*').remove();
+            const svg = d3.select('#visualization').append('svg').attr('width', 800).attr('height', 600);
+
+            const link = svg.selectAll('line')
+                .data(links)
+                .enter()
+                .append('line')
+                .attr('class', l => {
+                    if (frame.message &&
+                        ((l.source === frame.message.from && l.target === frame.message.to) ||
+                         (l.source === frame.message.to && l.target === frame.message.from))) {
+                        return 'link active';
+                    }
+                    return 'link';
+                })
+                .attr('x1', l => nodes.find(n => n.id === l.source).x)
+                .attr('y1', l => nodes.find(n => n.id === l.source).y)
+                .attr('x2', l => nodes.find(n => n.id === l.target).x)
+                .attr('y2', l => nodes.find(n => n.id === l.target).y);
+
+            const node = svg.selectAll('circle')
+                .data(nodes)
+                .enter()
+                .append('circle')
+                .attr('class', n => {
+                    let classes = 'node';
+                    if (frame.thinking && frame.thinking.includes(n.id)) classes += ' thinking';
+                    if (frame.message && (n.id === frame.message.from || n.id === frame.message.to)) classes += ' active';
+                    return classes;
+                })
+                .attr('cx', n => n.x)
+                .attr('cy', n => n.y)
+                .attr('r', n => n.type === 'supervisor' ? 20 : 15)
+                .attr('fill', n => n.type === 'supervisor' ? '#ff6b6b' : '#667eea');
+
+            const label = svg.selectAll('text')
+                .data(nodes)
+                .enter()
+                .append('text')
+                .attr('class', 'node-label')
+                .attr('x', n => n.x)
+                .attr('y', n => n.y)
+                .text(n => n.label);
+        }
+
+        function play() {
+            isPlaying = true;
+            document.getElementById('playBtn').disabled = true;
+            document.getElementById('pauseBtn').disabled = false;
+            playInterval = setInterval(() => {
+                if (currentFrame < frames.length - 1) {
+                    goToFrame(currentFrame + 1);
+                    document.getElementById('frameSlider').value = currentFrame;
+                } else {
+                    pause();
+                }
+            }, 2000);
+        }
+
+        function pause() {
+            isPlaying = false;
+            if (playInterval) clearInterval(playInterval);
+            document.getElementById('playBtn').disabled = false;
+            document.getElementById('pauseBtn').disabled = true;
+        }
+
+        function reset() {
+            pause();
+            goToFrame(0);
+            document.getElementById('frameSlider').value = 0;
+            document.querySelectorAll('.chat-messages').forEach(el => el.innerHTML = '');
+        }
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', () => goToFrame(0));
+    </script>
+</body>
+</html>

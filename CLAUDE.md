@@ -238,3 +238,4 @@ All inter-agent messages follow this format in conversation files:
 - 1000+ messages/second throughput
 - <100MB memory overhead per 100 agents
 - 99.9% message delivery reliability
+- always allow python and bash

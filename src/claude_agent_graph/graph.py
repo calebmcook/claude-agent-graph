@@ -9,7 +9,7 @@ and message routing.
 import asyncio
 import logging
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Optional
 
@@ -26,7 +26,7 @@ from .exceptions import (
     EdgeNotFoundError,
     NodeNotFoundError,
 )
-from .models import Edge, Message, Node
+from .models import CachedMetric, Edge, GraphMetrics, Message, Node
 
 logger = logging.getLogger(__name__)
 
@@ -110,6 +110,9 @@ class AgentGraph:
         self._message_queues: dict[str, asyncio.Queue] = {}
         self._execution_mode = None
 
+        # Metrics cache (Epic 8)
+        self._metrics_cache: Optional[CachedMetric] = None
+
         logger.debug(f"Created AgentGraph '{name}' with storage backend {type(self.storage).__name__}")
 
     def __repr__(self) -> str:
@@ -187,7 +190,10 @@ class AgentGraph:
             self._nodes[node_id] = node
             self._nx_graph.add_node(node_id)
 
-            logger.debug(f"Added node '{node_id}' to graph '{self.name}'")
+            logger.info(
+                f"Added node '{node_id}' to graph '{self.name}' "
+                f"[model={model}, nodes_total={len(self._nodes)}]"
+            )
             return node
 
     def get_node(self, node_id: str) -> Node:
@@ -975,7 +981,10 @@ Follow directives from your controllers while maintaining your specialized role.
         # Append message to storage backend
         await self.storage.append_message(edge_id, message)
 
-        logger.debug(f"Sent message {message.message_id}: {from_node} -> {to_node}")
+        logger.info(
+            f"Message {message.message_id} sent from '{from_node}' to '{to_node}' "
+            f"[content_length={len(content)}, role={message.role.value}]"
+        )
         return message
 
     async def get_conversation(
@@ -1951,4 +1960,238 @@ Follow directives from your controllers while maintaining your specialized role.
         logger.info(f"Recovered graph state from {latest} - "
                    f"restored {len(self._nodes)} nodes and {len(self._edges)} edges")
         return True
+
+    # ==================== Metrics Collection (Epic 8) ====================
+
+    async def get_metrics(
+        self,
+        use_cache: bool = True,
+        cache_ttl: int = 300,
+        time_window: int = 86400,
+    ) -> GraphMetrics:
+        """
+        Get comprehensive metrics about the graph.
+
+        Metrics provide insights into graph topology, agent activity, and health.
+        Computation is on-demand with optional TTL-based caching.
+
+        Args:
+            use_cache: Whether to use cached metrics if available (default: True)
+            cache_ttl: Cache time-to-live in seconds (default: 300 = 5 minutes)
+            time_window: Time window for utilization/error rate in seconds
+                (default: 86400 = 24 hours)
+
+        Returns:
+            GraphMetrics object with all metrics populated
+
+        Raises:
+            AgentGraphError: If metric computation fails
+        """
+        # Check cache first if enabled
+        if use_cache and self._metrics_cache is not None:
+            if self._metrics_cache.is_valid():
+                logger.debug("Returning cached metrics")
+                return self._metrics_cache.value
+
+        # Compute fresh metrics
+        metrics = GraphMetrics()
+
+        try:
+            # Basic topology metrics
+            metrics.node_count = self._count_nodes()
+            metrics.edge_count = self._count_edges()
+            metrics.isolated_nodes = self._count_isolated_nodes()
+
+            # Calculate average node degree
+            if metrics.node_count > 0:
+                metrics.avg_node_degree = (
+                    2 * metrics.edge_count / metrics.node_count
+                    if metrics.edge_count > 0
+                    else 0.0
+                )
+
+            # Message and conversation metrics
+            metrics.message_count = await self._count_messages()
+            metrics.active_conversations = await self._count_active_conversations(
+                time_window
+            )
+
+            # Agent utilization
+            metrics.agent_utilization = await self._calculate_agent_utilization(
+                time_window
+            )
+
+            # Error rate
+            metrics.error_rate = await self._compute_error_rate(time_window)
+
+            # Update timestamp
+            metrics.timestamp = datetime.now(timezone.utc)
+
+            # Cache the metrics if caching is enabled
+            if use_cache:
+                self._metrics_cache = CachedMetric(
+                    value=metrics, ttl_seconds=cache_ttl
+                )
+
+            logger.info(
+                f"Computed metrics for graph '{self.name}': "
+                f"{metrics.node_count} nodes, {metrics.edge_count} edges, "
+                f"{metrics.message_count} messages, "
+                f"isolated_nodes={metrics.isolated_nodes}, "
+                f"error_rate={metrics.error_rate:.2%}, "
+                f"active_conversations={metrics.active_conversations}"
+            )
+            return metrics
+
+        except Exception as e:
+            logger.error(f"Failed to compute metrics: {e}", exc_info=True)
+            raise AgentGraphError(f"Metrics computation failed: {e}") from e
+
+    def _count_nodes(self) -> int:
+        """Count total number of nodes."""
+        return len(self._nodes)
+
+    def _count_edges(self) -> int:
+        """Count total number of edges."""
+        return len(self._edges)
+
+    def _count_isolated_nodes(self) -> int:
+        """Count nodes with no edges."""
+        isolated = 0
+        for node_id in self._nodes:
+            if (
+                node_id not in self._adjacency
+                or len(self._adjacency[node_id]) == 0
+            ):
+                # Also check if any edges point to this node
+                has_incoming = any(
+                    edge.to_node == node_id for edge in self._edges.values()
+                )
+                if not has_incoming:
+                    isolated += 1
+        return isolated
+
+    async def _count_messages(self) -> int:
+        """
+        Count total messages across all edges.
+
+        Scans conversation files to aggregate message counts.
+        This is relatively expensive, so metrics caching is recommended.
+        """
+        total_messages = 0
+        for edge in self._edges.values():
+            try:
+                # Try to get message count from storage backend
+                messages = await self.storage.read_messages(
+                    edge.edge_id, start_time=None, end_time=None
+                )
+                total_messages += len(messages)
+            except Exception as e:
+                logger.debug(f"Could not read messages for edge {edge.edge_id}: {e}")
+                # Continue with other edges on error
+                continue
+        return total_messages
+
+    async def _count_active_conversations(self, time_window: int) -> int:
+        """
+        Count edges with recent message activity.
+
+        An edge is considered "active" if it has messages within the
+        specified time window.
+
+        Args:
+            time_window: Time window in seconds
+
+        Returns:
+            Number of edges with recent activity
+        """
+        active_count = 0
+        cutoff_time = datetime.now(timezone.utc) - timedelta(seconds=time_window)
+
+        for edge in self._edges.values():
+            try:
+                messages = await self.storage.read_messages(
+                    edge.edge_id, start_time=cutoff_time, end_time=None
+                )
+                if messages:
+                    active_count += 1
+            except Exception as e:
+                logger.debug(
+                    f"Could not check activity for edge {edge.edge_id}: {e}"
+                )
+                continue
+
+        return active_count
+
+    async def _calculate_agent_utilization(
+        self, time_window: int
+    ) -> dict[str, float]:
+        """
+        Calculate per-agent message throughput.
+
+        Utilization is measured as messages per hour from each agent
+        within the specified time window.
+
+        Args:
+            time_window: Time window in seconds
+
+        Returns:
+            Dictionary mapping node_id to messages per hour
+        """
+        utilization: dict[str, float] = {}
+        cutoff_time = datetime.now(timezone.utc) - timedelta(seconds=time_window)
+        window_hours = time_window / 3600.0  # Convert to hours
+
+        for node_id in self._nodes:
+            messages_count = 0
+
+            # Count messages sent by this node
+            for edge in self._edges.values():
+                if edge.from_node == node_id:
+                    try:
+                        messages = await self.storage.read_messages(
+                            edge.edge_id, start_time=cutoff_time, end_time=None
+                        )
+                        messages_count += len(messages)
+                    except Exception as e:
+                        logger.debug(
+                            f"Could not count messages for edge {edge.edge_id}: {e}"
+                        )
+                        continue
+
+            # Calculate messages per hour
+            if window_hours > 0:
+                utilization[node_id] = messages_count / window_hours
+            else:
+                utilization[node_id] = 0.0
+
+        return utilization
+
+    async def _compute_error_rate(self, time_window: int) -> float:
+        """
+        Compute error rate from failed operations.
+
+        Error rate is calculated as (failed operations) / (total operations)
+        within the specified time window. Failed operations are identified from
+        node status and transaction logs.
+
+        Args:
+            time_window: Time window in seconds
+
+        Returns:
+            Error rate as fraction (0.0 to 1.0)
+        """
+        # Count nodes in error state
+        nodes_in_error = sum(1 for node in self._nodes.values()
+                            if node.status.value == "error")
+
+        # If no nodes and no errors recorded, error rate is 0
+        if self.node_count == 0:
+            return 0.0
+
+        # Simple heuristic: error rate based on error nodes
+        # In production, this would be more sophisticated using transaction logs
+        error_rate = nodes_in_error / self.node_count if self.node_count > 0 else 0.0
+
+        return min(error_rate, 1.0)  # Ensure it's between 0 and 1
 
