@@ -141,6 +141,26 @@ Get a response from a specific agent for a given task.
 }
 ```
 
+### POST /api/supervisor-chat
+Have a back-and-forth conversation with the supervisor for clarifications and guidance.
+
+**Request**:
+```json
+{"message": "Ask the supervisor a question here"}
+```
+
+**Response**:
+```json
+{
+  "role": "supervisor",
+  "message": "Your question",
+  "response": "Supervisor's response",
+  "timestamp": "2025-11-04T17:04:02.827520"
+}
+```
+
+The supervisor chat maintains context and can ask follow-up questions, provide guidance, or help refine the problem-solving approach.
+
 ### GET /api/graph-state
 Get the current state of the graph.
 
@@ -159,6 +179,7 @@ The web interface (`index.html`) includes:
 - **Interactive Buttons**: Step through the workflow manually or let it run automatically
 - **Graph Visualization**: D3.js visualization showing agent nodes and connections
 - **Response Display**: Shows agent responses and analysis
+- **Supervisor Chat Window**: Interactive back-and-forth conversation with the supervisor
 
 ### Key Features
 - ✓ Real-time graph visualization updates
@@ -166,6 +187,8 @@ The web interface (`index.html`) includes:
 - ✓ Proper error handling and user feedback
 - ✓ Support for incomplete problem statements
 - ✓ Multiple agent role generation based on problem type
+- ✓ Interactive supervisor chat for clarifications and guidance
+- ✓ Separate chat windows for agents vs. supervisor interaction
 
 ## Known Limitations
 
