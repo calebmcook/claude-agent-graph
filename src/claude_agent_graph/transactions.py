@@ -149,7 +149,7 @@ class TransactionLog:
                         f"Logged operation: {operation.operation_type} "
                         f"(success={operation.success})"
                     )
-            except IOError as e:
+            except OSError as e:
                 logger.error(f"Failed to write transaction log: {e}")
                 raise
 
@@ -220,7 +220,7 @@ class TransactionLog:
                 if self.log_path.exists():
                     self.log_path.unlink()
                     logger.info(f"Cleared transaction log file: {self.log_path}")
-            except IOError as e:
+            except OSError as e:
                 logger.warning(f"Failed to clear transaction log file: {e}")
 
     async def get_failed_operations(self) -> list[tuple[int, Operation]]:
@@ -231,11 +231,7 @@ class TransactionLog:
             List of (index, operation) tuples for operations with success=False
         """
         async with self._lock:
-            return [
-                (i, op)
-                for i, op in enumerate(self._operations)
-                if not op.success
-            ]
+            return [(i, op) for i, op in enumerate(self._operations) if not op.success]
 
     async def get_recent_operations(self, limit: int = 10) -> list[Operation]:
         """

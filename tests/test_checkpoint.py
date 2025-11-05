@@ -10,7 +10,6 @@ Tests cover:
 
 import asyncio
 import tempfile
-from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
@@ -313,13 +312,14 @@ class TestCheckpointSerialization:
 class TestAgentGraphCheckpointing:
     """Test checkpoint integration with AgentGraph (Stories 7.1.1 & 7.1.2)."""
 
-    def test_save_checkpoint_from_graph(self):
+    @pytest.mark.asyncio
+    async def test_save_checkpoint_from_graph(self):
         """Test saving checkpoint from AgentGraph instance."""
         with tempfile.TemporaryDirectory() as tmpdir:
             graph = AgentGraph(name="test_graph")
-            graph.add_node("node1", "Test prompt 1")
-            graph.add_node("node2", "Test prompt 2")
-            graph.add_edge("node1", "node2", directed=True)
+            await graph.add_node("node1", "Test prompt 1")
+            await graph.add_node("node2", "Test prompt 2")
+            await graph.add_edge("node1", "node2", directed=True)
 
             filepath = Path(tmpdir) / "graph_checkpoint.msgpack"
             saved_path = graph.save_checkpoint(filepath)
@@ -327,14 +327,15 @@ class TestAgentGraphCheckpointing:
             assert saved_path == filepath
             assert filepath.exists()
 
-    def test_save_checkpoint_auto_path(self):
+    @pytest.mark.asyncio
+    async def test_save_checkpoint_auto_path(self):
         """Test saving checkpoint with auto-generated path."""
         with tempfile.TemporaryDirectory() as tmpdir:
             graph = AgentGraph(
                 name="test_graph",
                 checkpoint_dir=Path(tmpdir),
             )
-            graph.add_node("node1", "Test")
+            await graph.add_node("node1", "Test")
 
             saved_path = graph.save_checkpoint()
 
@@ -342,14 +343,15 @@ class TestAgentGraphCheckpointing:
             assert saved_path.parent == Path(tmpdir)
             assert saved_path.name.startswith("checkpoint_")
 
-    def test_load_checkpoint_creates_graph(self):
+    @pytest.mark.asyncio
+    async def test_load_checkpoint_creates_graph(self):
         """Test loading checkpoint creates a new AgentGraph with same state."""
         with tempfile.TemporaryDirectory() as tmpdir:
             # Create and save
             graph1 = AgentGraph(name="original_graph")
-            graph1.add_node("node1", "Prompt 1", model="claude-3-sonnet")
-            graph1.add_node("node2", "Prompt 2")
-            graph1.add_edge("node1", "node2", directed=True, priority="high")
+            await graph1.add_node("node1", "Prompt 1", model="claude-3-sonnet")
+            await graph1.add_node("node2", "Prompt 2")
+            await graph1.add_edge("node1", "node2", directed=True, priority="high")
 
             filepath = Path(tmpdir) / "checkpoint.msgpack"
             graph1.save_checkpoint(filepath)
@@ -364,7 +366,8 @@ class TestAgentGraphCheckpointing:
             assert graph2.get_node("node1").model == "claude-3-sonnet"
             assert graph2.get_edge("node1", "node2").properties["priority"] == "high"
 
-    def test_load_checkpoint_preserves_topology_constraint(self):
+    @pytest.mark.asyncio
+    async def test_load_checkpoint_preserves_topology_constraint(self):
         """Test that topology constraint is preserved in checkpoint."""
         with tempfile.TemporaryDirectory() as tmpdir:
             graph1 = AgentGraph(
@@ -372,9 +375,9 @@ class TestAgentGraphCheckpointing:
                 topology_constraint="dag",
                 max_nodes=500,
             )
-            graph1.add_node("n1", "Test1")
-            graph1.add_node("n2", "Test2")
-            graph1.add_edge("n1", "n2")
+            await graph1.add_node("n1", "Test1")
+            await graph1.add_node("n2", "Test2")
+            await graph1.add_edge("n1", "n2")
 
             filepath = Path(tmpdir) / "cp.msgpack"
             graph1.save_checkpoint(filepath)
@@ -384,7 +387,8 @@ class TestAgentGraphCheckpointing:
             assert graph2.topology_constraint == "dag"
             assert graph2.max_nodes == 500
 
-    def test_load_latest_checkpoint(self):
+    @pytest.mark.asyncio
+    async def test_load_latest_checkpoint(self):
         """Test loading latest checkpoint from directory."""
         with tempfile.TemporaryDirectory() as tmpdir:
             graph = AgentGraph(
@@ -393,14 +397,15 @@ class TestAgentGraphCheckpointing:
                 auto_save=False,
             )
 
-            graph.add_node("node1", "Test1")
+            await graph.add_node("node1", "Test1")
             graph.save_checkpoint()
 
             # Sleep briefly to ensure different timestamp
             import time
+
             time.sleep(0.01)
 
-            graph.add_node("node2", "Test2")
+            await graph.add_node("node2", "Test2")
             graph.save_checkpoint()
 
             # Create new graph and load latest
@@ -410,13 +415,10 @@ class TestAgentGraphCheckpointing:
                 auto_save=False,
             )
 
-            async def test_load():
-                loaded = await graph2.load_latest_checkpoint()
-                assert loaded
-                assert graph2.node_count == 2
-                assert "node2" in graph2._nodes
-
-            asyncio.run(test_load())
+            loaded = await graph2.load_latest_checkpoint()
+            assert loaded
+            assert graph2.node_count == 2
+            assert "node2" in graph2._nodes
 
     def test_load_latest_checkpoint_no_checkpoint_found(self):
         """Test load_latest_checkpoint returns False when no checkpoint exists."""
@@ -519,7 +521,7 @@ class TestAutoSave:
                 auto_save_interval=1,  # 1 second for faster testing
             )
 
-            graph.add_node("node1", "Test")
+            await graph.add_node("node1", "Test")
             graph.start_auto_save()
 
             # Wait for auto-save to trigger
@@ -541,7 +543,7 @@ class TestAutoSave:
                 auto_save_interval=1,
             )
 
-            graph.add_node("node1", "Test")
+            await graph.add_node("node1", "Test")
 
             # Start auto-save first, let it create a checkpoint
             graph.start_auto_save()
@@ -562,7 +564,8 @@ class TestAutoSave:
 class TestCrashRecovery:
     """Test crash recovery functionality (Story 7.2.2)."""
 
-    def test_recovery_on_startup(self):
+    @pytest.mark.asyncio
+    async def test_recovery_on_startup(self):
         """Test graph can be recovered from checkpoint on startup."""
         with tempfile.TemporaryDirectory() as tmpdir:
             # Create graph with data
@@ -571,9 +574,9 @@ class TestCrashRecovery:
                 checkpoint_dir=Path(tmpdir),
                 auto_save=False,
             )
-            graph1.add_node("node1", "Prompt 1")
-            graph1.add_node("node2", "Prompt 2")
-            graph1.add_edge("node1", "node2")
+            await graph1.add_node("node1", "Prompt 1")
+            await graph1.add_node("node2", "Prompt 2")
+            await graph1.add_edge("node1", "node2")
             graph1.save_checkpoint()
 
             # Simulate crash/restart by creating new graph
@@ -584,15 +587,13 @@ class TestCrashRecovery:
             )
 
             # Recover from checkpoint
-            async def test_recovery():
-                recovered = await graph2.load_latest_checkpoint()
-                assert recovered
-                assert graph2.node_count == 2
-                assert graph2.edge_count == 1
+            recovered = await graph2.load_latest_checkpoint()
+            assert recovered
+            assert graph2.node_count == 2
+            assert graph2.edge_count == 1
 
-            asyncio.run(test_recovery())
-
-    def test_multiple_checkpoints_loads_latest(self):
+    @pytest.mark.asyncio
+    async def test_multiple_checkpoints_loads_latest(self):
         """Test that loading latest selects the newest checkpoint."""
         with tempfile.TemporaryDirectory() as tmpdir:
             graph = AgentGraph(
@@ -602,13 +603,14 @@ class TestCrashRecovery:
             )
 
             # Create first checkpoint
-            graph.add_node("node1", "First version")
+            await graph.add_node("node1", "First version")
             graph.save_checkpoint()
 
             # Create second checkpoint
             import time
+
             time.sleep(0.01)
-            graph.add_node("node2", "Second version")
+            await graph.add_node("node2", "Second version")
             graph.save_checkpoint()
 
             # Create new graph and recover
@@ -618,13 +620,10 @@ class TestCrashRecovery:
                 auto_save=False,
             )
 
-            async def test_recovery():
-                await graph2.load_latest_checkpoint()
-                # Should have both nodes from latest checkpoint
-                assert graph2.node_count == 2
-                assert "node2" in graph2._nodes
-
-            asyncio.run(test_recovery())
+            await graph2.load_latest_checkpoint()
+            # Should have both nodes from latest checkpoint
+            assert graph2.node_count == 2
+            assert "node2" in graph2._nodes
 
     def test_checkpoint_version_incompatibility(self):
         """Test that incompatible checkpoint versions are rejected."""
@@ -667,7 +666,8 @@ class TestCrashRecovery:
 class TestCheckpointIntegration:
     """Integration tests for checkpoint system."""
 
-    def test_checkpoint_roundtrip_preserves_state(self):
+    @pytest.mark.asyncio
+    async def test_checkpoint_roundtrip_preserves_state(self):
         """Test saving and loading preserves exact state."""
         with tempfile.TemporaryDirectory() as tmpdir:
             # Create complex graph
@@ -678,11 +678,11 @@ class TestCheckpointIntegration:
             )
 
             for i in range(5):
-                graph1.add_node(f"node{i}", f"Prompt {i}", metadata={"idx": i})
+                await graph1.add_node(f"node{i}", f"Prompt {i}", metadata={"idx": i})
 
-            graph1.add_edge("node0", "node1")
-            graph1.add_edge("node1", "node2", properties={"weight": 0.8})
-            graph1.add_edge("node2", "node3", directed=False)
+            await graph1.add_edge("node0", "node1")
+            await graph1.add_edge("node1", "node2", properties={"weight": 0.8})
+            await graph1.add_edge("node2", "node3", directed=False)
 
             filepath = Path(tmpdir) / "complex.msgpack"
             graph1.save_checkpoint(filepath)
@@ -725,7 +725,7 @@ class TestCheckpointIntegration:
                 auto_save_interval=1,
             )
 
-            graph1.add_node("node1", "Original prompt")
+            await graph1.add_node("node1", "Original prompt")
             graph1.start_auto_save()
 
             # Wait for auto-save

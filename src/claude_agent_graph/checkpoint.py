@@ -9,7 +9,7 @@ import hashlib
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import msgpack
 
@@ -56,7 +56,7 @@ class Checkpoint:
         nodes: dict[str, Node],
         edges: dict[str, Edge],
         metadata: dict[str, Any],
-        timestamp: Optional[datetime] = None,
+        timestamp: datetime | None = None,
     ):
         """
         Initialize a checkpoint.
@@ -183,8 +183,7 @@ class Checkpoint:
                 raise CheckpointVersionError("Checkpoint missing version field")
             if version != CHECKPOINT_VERSION:
                 raise CheckpointVersionError(
-                    f"Unsupported checkpoint version {version}. "
-                    f"Expected {CHECKPOINT_VERSION}"
+                    f"Unsupported checkpoint version {version}. " f"Expected {CHECKPOINT_VERSION}"
                 )
 
             # Validate checksum

@@ -11,7 +11,7 @@ This module defines the core data structures:
 from dataclasses import dataclass, field as dataclass_field
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Any, Optional
+from typing import Any
 from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
@@ -158,11 +158,11 @@ class Node(BaseModel):
     )
 
     # Agent session management fields (Epic 4)
-    original_system_prompt: Optional[str] = Field(
+    original_system_prompt: str | None = Field(
         default=None,
         description="Backup of original system prompt before control injection",
     )
-    effective_system_prompt: Optional[str] = Field(
+    effective_system_prompt: str | None = Field(
         default=None,
         description="System prompt with injected controller information",
     )
@@ -170,7 +170,7 @@ class Node(BaseModel):
         default=False,
         description="Whether the prompt needs recomputation due to edge changes",
     )
-    agent_session: Optional[Any] = Field(
+    agent_session: Any | None = Field(
         default=None,
         description="Reference to ClaudeSDKClient instance (not serialized)",
         exclude=True,
