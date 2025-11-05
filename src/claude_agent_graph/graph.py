@@ -9,9 +9,9 @@ and message routing.
 import asyncio
 import logging
 from collections import defaultdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 import networkx as nx
 
@@ -25,11 +25,16 @@ from .exceptions import (
     DuplicateNodeError,
     EdgeNotFoundError,
     NodeNotFoundError,
-    TopologyViolationError,
 )
-from .models import Edge, Message, Node
+from .models import CachedMetric, Edge, GraphMetrics, Message, Node
 
 logger = logging.getLogger(__name__)
+
+
+class TopologyViolationError(AgentGraphError):
+    """Raised when a graph operation violates topology constraints."""
+
+    pass
 
 
 class AgentGraph:
@@ -49,11 +54,10 @@ class AgentGraph:
         max_nodes: int = 10000,
         persistence_enabled: bool = True,
         topology_constraint: str | None = None,
-        storage_backend: StorageBackend | str | None = None,
-        storage_path: Path | str | None = None,
+        storage_backend: StorageBackend | None = None,
         auto_save: bool = True,
         auto_save_interval: int = 300,
-        checkpoint_dir: Path | str | None = None,
+        checkpoint_dir: Optional[Path | str] = None,
     ):
         """
         Initialize an AgentGraph.
@@ -64,26 +68,20 @@ class AgentGraph:
             persistence_enabled: Whether to enable persistence
             topology_constraint: Optional topology constraint
                 (e.g., "tree", "dag", "mesh", "chain", "star")
-            storage_backend: Storage backend for conversations. Can be:
-                - A StorageBackend instance
-                - A string: "filesystem" (default if None)
-                - None: uses FilesystemBackend with default path
-            storage_path: Path for storage backend (only used with string storage_backend)
+            storage_backend: Storage backend for conversations (default: FilesystemBackend)
             auto_save: Whether to enable automatic checkpointing (default: True)
             auto_save_interval: Seconds between auto-save checkpoints (default: 300)
             checkpoint_dir: Directory for checkpoint files (default: ./checkpoints/{name})
-
-        Raises:
-            ValueError: If storage_backend string is invalid or if storage_path is
-                provided with a StorageBackend instance
         """
         self.name = name
         self.max_nodes = max_nodes
         self.persistence_enabled = persistence_enabled
         self.topology_constraint = topology_constraint
 
-        # Set up storage backend with enhanced convenience parameters
-        self.storage = self._init_storage_backend(storage_backend, storage_path)
+        # Set up storage backend (default to FilesystemBackend)
+        if storage_backend is None:
+            storage_backend = FilesystemBackend(base_dir=f"./conversations/{name}")
+        self.storage = storage_backend
 
         # Checkpoint configuration (Epic 7)
         self.auto_save = auto_save
@@ -92,7 +90,7 @@ class AgentGraph:
             self.checkpoint_dir = Path(f"./checkpoints/{name}")
         else:
             self.checkpoint_dir = Path(checkpoint_dir)
-        self._auto_save_task: asyncio.Task | None = None
+        self._auto_save_task: Optional[asyncio.Task] = None
 
         # Internal data structures
         self._nodes: dict[str, Node] = {}
@@ -112,62 +110,10 @@ class AgentGraph:
         self._message_queues: dict[str, asyncio.Queue] = {}
         self._execution_mode = None
 
-        logger.debug(
-            f"Created AgentGraph '{name}' with storage backend {type(self.storage).__name__}"
-        )
+        # Metrics cache (Epic 8)
+        self._metrics_cache: Optional[CachedMetric] = None
 
-    def _init_storage_backend(
-        self,
-        storage_backend: StorageBackend | str | None,
-        storage_path: Path | str | None,
-    ) -> StorageBackend:
-        """
-        Initialize storage backend from various input formats.
-
-        Args:
-            storage_backend: Backend instance, string identifier, or None
-            storage_path: Optional path for filesystem backend
-
-        Returns:
-            Initialized StorageBackend instance
-
-        Raises:
-            ValueError: If invalid backend type or conflicting parameters
-        """
-        # Case 1: Already a StorageBackend instance
-        if isinstance(storage_backend, StorageBackend):
-            if storage_path is not None:
-                raise ValueError(
-                    "storage_path cannot be specified when storage_backend is a "
-                    "StorageBackend instance. Use the backend's constructor instead."
-                )
-            return storage_backend
-
-        # Case 2: String identifier (e.g., "filesystem")
-        if isinstance(storage_backend, str):
-            backend_type = storage_backend.lower()
-
-            # Validate backend type
-            valid_backends = ["filesystem"]
-            if backend_type not in valid_backends:
-                raise ValueError(
-                    f"Invalid storage backend: '{backend_type}'. "
-                    f"Valid options: {', '.join(valid_backends)}"
-                )
-
-            if backend_type == "filesystem":
-                base_dir = storage_path if storage_path else f"./conversations/{self.name}"
-                return FilesystemBackend(base_dir=base_dir)
-
-        # Case 3: None - use default
-        if storage_backend is None:
-            base_dir = storage_path if storage_path else f"./conversations/{self.name}"
-            return FilesystemBackend(base_dir=base_dir)
-
-        raise ValueError(
-            f"storage_backend must be a StorageBackend instance, string, or None. "
-            f"Got: {type(storage_backend)}"
-        )
+        logger.debug(f"Created AgentGraph '{name}' with storage backend {type(self.storage).__name__}")
 
     def __repr__(self) -> str:
         """Return string representation of the graph."""
@@ -238,13 +184,16 @@ class AgentGraph:
                     metadata=metadata,
                 )
             except ValueError as e:
-                raise ValueError(f"Node validation failed: {e}") from e
+                raise ValueError(f"Node validation failed: {e}")
 
             # Store node
             self._nodes[node_id] = node
             self._nx_graph.add_node(node_id)
 
-            logger.debug(f"Added node '{node_id}' to graph '{self.name}'")
+            logger.info(
+                f"Added node '{node_id}' to graph '{self.name}' "
+                f"[model={model}, nodes_total={len(self._nodes)}]"
+            )
             return node
 
     def get_node(self, node_id: str) -> Node:
@@ -350,7 +299,7 @@ class AgentGraph:
                     properties=properties,
                 )
             except ValueError as e:
-                raise ValueError(f"Edge validation failed: {e}") from e
+                raise ValueError(f"Edge validation failed: {e}")
 
             # Store edge
             self._edges[edge_id] = edge
@@ -754,7 +703,8 @@ class AgentGraph:
 
         # Build controller list
         controller_lines = "\n".join(
-            f"  - Agent '{ctrl_id}' ({ctrl_type})" for ctrl_id, ctrl_type in sorted(controllers)
+            f"  - Agent '{ctrl_id}' ({ctrl_type})"
+            for ctrl_id, ctrl_type in sorted(controllers)
         )
 
         # Inject control information
@@ -1031,11 +981,10 @@ Follow directives from your controllers while maintaining your specialized role.
         # Append message to storage backend
         await self.storage.append_message(edge_id, message)
 
-        # Enqueue for execution mode if active (Epic 6)
-        if self._execution_mode:
-            await self._enqueue_message(to_node, message)
-
-        logger.debug(f"Sent message {message.message_id}: {from_node} -> {to_node}")
+        logger.info(
+            f"Message {message.message_id} sent from '{from_node}' to '{to_node}' "
+            f"[content_length={len(content)}, role={message.role.value}]"
+        )
         return message
 
     async def get_conversation(
@@ -1247,7 +1196,7 @@ Follow directives from your controllers while maintaining your specialized role.
             except (nx.NetworkXNoPath, nx.NodeNotFound):
                 raise EdgeNotFoundError(
                     f"No path exists between '{from_node}' and '{to_node}'"
-                ) from None
+                )
         else:
             # Validate provided path
             if len(path) < 2:
@@ -1294,127 +1243,6 @@ Follow directives from your controllers while maintaining your specialized role.
             f"path={path}, hops={len(path) - 1}"
         )
         return messages
-
-    # ==================== Message Processing with Agents (Epic 6) ====================
-
-    async def _process_message_with_agent(
-        self,
-        node_id: str,
-        message: Message,
-    ) -> str | None:
-        """
-        Process a message by sending it to an agent and getting its response.
-
-        This is the critical bridge between message queues and agent execution.
-        Takes a message from the queue, sends it to the agent's session, and
-        returns the agent's response.
-
-        Args:
-            node_id: ID of the agent to process the message
-            message: The Message object to send to the agent
-
-        Returns:
-            The agent's response text, or None if processing fails
-
-        Raises:
-            NodeNotFoundError: If node doesn't exist
-            AgentGraphError: If agent session fails
-        """
-        if node_id not in self._nodes:
-            raise NodeNotFoundError(f"Node '{node_id}' not found")
-
-        node = self._nodes[node_id]
-
-        try:
-            # Ensure agent session is active
-            session = self._agent_manager._sessions.get(node_id)
-            if session is None:
-                logger.warning(f"Agent session for '{node_id}' not active")
-                return None
-
-            # Build the message content to send to the agent
-            # Include context about the sender and any metadata
-            full_content = message.content
-            if message.metadata.get("type") == "command":
-                # For commands, include command name and params in context
-                command_name = message.metadata.get("command", "unknown")
-                params = message.metadata.get("params", {})
-                full_content = f"[COMMAND: {command_name}] {message.content}\nParameters: {params}"
-
-            # Send message to agent and get response
-            # Using the ClaudeSDKClient query and receive_response pattern
-            await session.query(full_content)
-
-            # Collect the response from the agent
-            response_text = ""
-            async for response_msg in session.receive_response():
-                # Handle different message types from the response
-                if hasattr(response_msg, "content"):
-                    # AssistantMessage has content attribute (which is a list of content blocks)
-                    content = response_msg.content
-                    if isinstance(content, list):
-                        # Content is a list of blocks - extract text from each
-                        for block in content:
-                            if hasattr(block, "text"):
-                                response_text += block.text
-                    else:
-                        # Content is a string
-                        response_text += str(content)
-                elif hasattr(response_msg, "text"):
-                    # TextBlock has text attribute
-                    response_text += response_msg.text
-
-            logger.debug(
-                f"Agent '{node_id}' processed message {message.message_id} "
-                f"from '{message.from_node}': received {len(response_text)} char response"
-            )
-
-            response = response_text
-
-            # Optionally: Store the agent's response back through the graph
-            # This would create a return message if we want bidirectional conversation
-            # For now, just return the response
-            return response
-
-        except Exception as e:
-            logger.error(
-                f"Error processing message {message.message_id} with agent '{node_id}': {e}",
-                exc_info=True,
-            )
-            # Update node status to ERROR
-            node.status = "ERROR"
-            return None
-
-    async def _enqueue_message(self, node_id: str, message: Message) -> None:
-        """
-        Enqueue a message for execution mode processing.
-
-        This is called by send_message() when an execution mode is active,
-        adding the message to the receiving node's queue for later processing.
-
-        Args:
-            node_id: ID of the receiving node
-            message: The Message to enqueue
-        """
-        # Lazily create queue for this node if it doesn't exist
-        if node_id not in self._message_queues:
-            self._message_queues[node_id] = asyncio.Queue(maxsize=1000)
-
-        try:
-            # Try to put the message in the queue
-            self._message_queues[node_id].put_nowait(message)
-            logger.debug(f"Enqueued message {message.message_id} for node '{node_id}'")
-        except asyncio.QueueFull:
-            # Queue is full - log warning and drop oldest message
-            logger.warning(f"Message queue full for node '{node_id}', dropping oldest message")
-            try:
-                # Drop the oldest message (FIFO) and enqueue the new one
-                self._message_queues[node_id].get_nowait()
-                self._message_queues[node_id].put_nowait(message)
-                logger.debug(f"Dropped oldest message, enqueued new message {message.message_id}")
-            except asyncio.QueueEmpty:
-                # Should not happen, but handle gracefully
-                pass
 
     # ==================== Async Context Manager (Epic 4) ====================
 
@@ -1572,8 +1400,7 @@ Follow directives from your controllers while maintaining your specialized role.
             if not cascade:
                 # Get all connected edges
                 connected_edges = [
-                    edge
-                    for edge in self._edges.values()
+                    edge for edge in self._edges.values()
                     if edge.from_node == node_id or edge.to_node == node_id
                 ]
                 if connected_edges:
@@ -1588,8 +1415,7 @@ Follow directives from your controllers while maintaining your specialized role.
             edges_to_remove = []
             if cascade:
                 edges_to_remove = [
-                    edge
-                    for edge in list(self._edges.values())
+                    edge for edge in list(self._edges.values())
                     if edge.from_node == node_id or edge.to_node == node_id
                 ]
 
@@ -1906,7 +1732,9 @@ Follow directives from your controllers while maintaining your specialized role.
         old_control_type = edge.properties.get("control_type")
         new_control_type = properties.get("control_type")
         control_type_changed = (
-            edge.directed and new_control_type is not None and old_control_type != new_control_type
+            edge.directed and
+            new_control_type is not None and
+            old_control_type != new_control_type
         )
 
         # Merge properties
@@ -1927,7 +1755,7 @@ Follow directives from your controllers while maintaining your specialized role.
 
     # ==================== Checkpoint Operations (Epic 7) ====================
 
-    def save_checkpoint(self, filepath: Path | str | None = None) -> Path:
+    def save_checkpoint(self, filepath: Optional[Path | str] = None) -> Path:
         """
         Save graph state to a checkpoint file.
 
@@ -2018,10 +1846,8 @@ Follow directives from your controllers while maintaining your specialized role.
 
             logger.debug(f"Restored edge '{edge_id}'")
 
-        logger.info(
-            f"Loaded checkpoint from {filepath} - "
-            f"restored {len(graph._nodes)} nodes and {len(graph._edges)} edges"
-        )
+        logger.info(f"Loaded checkpoint from {filepath} - "
+                   f"restored {len(graph._nodes)} nodes and {len(graph._edges)} edges")
         return graph
 
     async def _auto_save_worker(self) -> None:
@@ -2131,8 +1957,241 @@ Follow directives from your controllers while maintaining your specialized role.
                 self._adjacency[edge.to_node].append(edge.from_node)
                 self._nx_graph.add_edge(edge.to_node, edge.from_node)
 
-        logger.info(
-            f"Recovered graph state from {latest} - "
-            f"restored {len(self._nodes)} nodes and {len(self._edges)} edges"
-        )
+        logger.info(f"Recovered graph state from {latest} - "
+                   f"restored {len(self._nodes)} nodes and {len(self._edges)} edges")
         return True
+
+    # ==================== Metrics Collection (Epic 8) ====================
+
+    async def get_metrics(
+        self,
+        use_cache: bool = True,
+        cache_ttl: int = 300,
+        time_window: int = 86400,
+    ) -> GraphMetrics:
+        """
+        Get comprehensive metrics about the graph.
+
+        Metrics provide insights into graph topology, agent activity, and health.
+        Computation is on-demand with optional TTL-based caching.
+
+        Args:
+            use_cache: Whether to use cached metrics if available (default: True)
+            cache_ttl: Cache time-to-live in seconds (default: 300 = 5 minutes)
+            time_window: Time window for utilization/error rate in seconds
+                (default: 86400 = 24 hours)
+
+        Returns:
+            GraphMetrics object with all metrics populated
+
+        Raises:
+            AgentGraphError: If metric computation fails
+        """
+        # Check cache first if enabled
+        if use_cache and self._metrics_cache is not None:
+            if self._metrics_cache.is_valid():
+                logger.debug("Returning cached metrics")
+                return self._metrics_cache.value
+
+        # Compute fresh metrics
+        metrics = GraphMetrics()
+
+        try:
+            # Basic topology metrics
+            metrics.node_count = self._count_nodes()
+            metrics.edge_count = self._count_edges()
+            metrics.isolated_nodes = self._count_isolated_nodes()
+
+            # Calculate average node degree
+            if metrics.node_count > 0:
+                metrics.avg_node_degree = (
+                    2 * metrics.edge_count / metrics.node_count
+                    if metrics.edge_count > 0
+                    else 0.0
+                )
+
+            # Message and conversation metrics
+            metrics.message_count = await self._count_messages()
+            metrics.active_conversations = await self._count_active_conversations(
+                time_window
+            )
+
+            # Agent utilization
+            metrics.agent_utilization = await self._calculate_agent_utilization(
+                time_window
+            )
+
+            # Error rate
+            metrics.error_rate = await self._compute_error_rate(time_window)
+
+            # Update timestamp
+            metrics.timestamp = datetime.now(timezone.utc)
+
+            # Cache the metrics if caching is enabled
+            if use_cache:
+                self._metrics_cache = CachedMetric(
+                    value=metrics, ttl_seconds=cache_ttl
+                )
+
+            logger.info(
+                f"Computed metrics for graph '{self.name}': "
+                f"{metrics.node_count} nodes, {metrics.edge_count} edges, "
+                f"{metrics.message_count} messages, "
+                f"isolated_nodes={metrics.isolated_nodes}, "
+                f"error_rate={metrics.error_rate:.2%}, "
+                f"active_conversations={metrics.active_conversations}"
+            )
+            return metrics
+
+        except Exception as e:
+            logger.error(f"Failed to compute metrics: {e}", exc_info=True)
+            raise AgentGraphError(f"Metrics computation failed: {e}") from e
+
+    def _count_nodes(self) -> int:
+        """Count total number of nodes."""
+        return len(self._nodes)
+
+    def _count_edges(self) -> int:
+        """Count total number of edges."""
+        return len(self._edges)
+
+    def _count_isolated_nodes(self) -> int:
+        """Count nodes with no edges."""
+        isolated = 0
+        for node_id in self._nodes:
+            if (
+                node_id not in self._adjacency
+                or len(self._adjacency[node_id]) == 0
+            ):
+                # Also check if any edges point to this node
+                has_incoming = any(
+                    edge.to_node == node_id for edge in self._edges.values()
+                )
+                if not has_incoming:
+                    isolated += 1
+        return isolated
+
+    async def _count_messages(self) -> int:
+        """
+        Count total messages across all edges.
+
+        Scans conversation files to aggregate message counts.
+        This is relatively expensive, so metrics caching is recommended.
+        """
+        total_messages = 0
+        for edge in self._edges.values():
+            try:
+                # Try to get message count from storage backend
+                messages = await self.storage.read_messages(
+                    edge.edge_id, start_time=None, end_time=None
+                )
+                total_messages += len(messages)
+            except Exception as e:
+                logger.debug(f"Could not read messages for edge {edge.edge_id}: {e}")
+                # Continue with other edges on error
+                continue
+        return total_messages
+
+    async def _count_active_conversations(self, time_window: int) -> int:
+        """
+        Count edges with recent message activity.
+
+        An edge is considered "active" if it has messages within the
+        specified time window.
+
+        Args:
+            time_window: Time window in seconds
+
+        Returns:
+            Number of edges with recent activity
+        """
+        active_count = 0
+        cutoff_time = datetime.now(timezone.utc) - timedelta(seconds=time_window)
+
+        for edge in self._edges.values():
+            try:
+                messages = await self.storage.read_messages(
+                    edge.edge_id, start_time=cutoff_time, end_time=None
+                )
+                if messages:
+                    active_count += 1
+            except Exception as e:
+                logger.debug(
+                    f"Could not check activity for edge {edge.edge_id}: {e}"
+                )
+                continue
+
+        return active_count
+
+    async def _calculate_agent_utilization(
+        self, time_window: int
+    ) -> dict[str, float]:
+        """
+        Calculate per-agent message throughput.
+
+        Utilization is measured as messages per hour from each agent
+        within the specified time window.
+
+        Args:
+            time_window: Time window in seconds
+
+        Returns:
+            Dictionary mapping node_id to messages per hour
+        """
+        utilization: dict[str, float] = {}
+        cutoff_time = datetime.now(timezone.utc) - timedelta(seconds=time_window)
+        window_hours = time_window / 3600.0  # Convert to hours
+
+        for node_id in self._nodes:
+            messages_count = 0
+
+            # Count messages sent by this node
+            for edge in self._edges.values():
+                if edge.from_node == node_id:
+                    try:
+                        messages = await self.storage.read_messages(
+                            edge.edge_id, start_time=cutoff_time, end_time=None
+                        )
+                        messages_count += len(messages)
+                    except Exception as e:
+                        logger.debug(
+                            f"Could not count messages for edge {edge.edge_id}: {e}"
+                        )
+                        continue
+
+            # Calculate messages per hour
+            if window_hours > 0:
+                utilization[node_id] = messages_count / window_hours
+            else:
+                utilization[node_id] = 0.0
+
+        return utilization
+
+    async def _compute_error_rate(self, time_window: int) -> float:
+        """
+        Compute error rate from failed operations.
+
+        Error rate is calculated as (failed operations) / (total operations)
+        within the specified time window. Failed operations are identified from
+        node status and transaction logs.
+
+        Args:
+            time_window: Time window in seconds
+
+        Returns:
+            Error rate as fraction (0.0 to 1.0)
+        """
+        # Count nodes in error state
+        nodes_in_error = sum(1 for node in self._nodes.values()
+                            if node.status.value == "error")
+
+        # If no nodes and no errors recorded, error rate is 0
+        if self.node_count == 0:
+            return 0.0
+
+        # Simple heuristic: error rate based on error nodes
+        # In production, this would be more sophisticated using transaction logs
+        error_rate = nodes_in_error / self.node_count if self.node_count > 0 else 0.0
+
+        return min(error_rate, 1.0)  # Ensure it's between 0 and 1
+

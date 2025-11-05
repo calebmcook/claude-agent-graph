@@ -31,7 +31,9 @@ from claude_agent_graph.execution import (
 )
 from claude_agent_graph.graph import AgentGraph
 from claude_agent_graph.models import (
+    CachedMetric,
     Edge,
+    GraphMetrics,
     Message,
     MessageRole,
     Node,
@@ -43,6 +45,11 @@ from claude_agent_graph.transactions import (
     RollbackManager,
     StateSnapshot,
     TransactionLog,
+)
+from claude_agent_graph.visualization import (
+    VisualizationError,
+    export_graphviz,
+    export_json,
 )
 
 __version__ = "0.1.0"
@@ -62,6 +69,12 @@ __all__ = [
     "CheckpointError",
     "CheckpointVersionError",
     "CheckpointCorruptedError",
+    # Metrics & Visualization (Epic 8)
+    "GraphMetrics",
+    "CachedMetric",
+    "export_graphviz",
+    "export_json",
+    "VisualizationError",
     # Data models
     "Message",
     "MessageRole",

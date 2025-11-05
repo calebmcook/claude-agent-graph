@@ -2295,3 +2295,239 @@ class TestControlCommands:
         assert msg2.from_node == "risk_officer"
         assert msg1.to_node == "analyst"
         assert msg2.to_node == "analyst"
+
+
+class TestGraphMetrics:
+    """Tests for graph metrics collection (Epic 8)."""
+
+    @pytest.mark.asyncio
+    async def test_get_metrics_empty_graph(self) -> None:
+        """Test metrics on an empty graph."""
+        graph = AgentGraph(name="empty")
+
+        metrics = await graph.get_metrics()
+
+        assert metrics.node_count == 0
+        assert metrics.edge_count == 0
+        assert metrics.message_count == 0
+        assert metrics.active_conversations == 0
+        assert metrics.isolated_nodes == 0
+        assert metrics.avg_node_degree == 0.0
+        assert metrics.error_rate == 0.0
+        assert metrics.agent_utilization == {}
+
+    @pytest.mark.asyncio
+    async def test_get_metrics_simple_graph(self, tmp_path: Path) -> None:
+        """Test metrics on a simple graph."""
+        graph = AgentGraph(
+            name="test",
+            storage_backend=FilesystemBackend(base_dir=str(tmp_path)),
+        )
+
+        # Add nodes
+        await graph.add_node("node1", "Prompt 1")
+        await graph.add_node("node2", "Prompt 2")
+        await graph.add_node("node3", "Prompt 3")
+
+        # Add edges
+        await graph.add_edge("node1", "node2", directed=True)
+        await graph.add_edge("node2", "node3", directed=True)
+
+        metrics = await graph.get_metrics()
+
+        assert metrics.node_count == 3
+        assert metrics.edge_count == 2
+        assert metrics.isolated_nodes == 0
+        assert metrics.avg_node_degree > 0.0
+
+    @pytest.mark.asyncio
+    async def test_get_metrics_isolated_nodes(self, tmp_path: Path) -> None:
+        """Test metrics correctly counts isolated nodes."""
+        graph = AgentGraph(
+            name="test",
+            storage_backend=FilesystemBackend(base_dir=str(tmp_path)),
+        )
+
+        # Add some nodes
+        await graph.add_node("isolated1", "Prompt 1")
+        await graph.add_node("isolated2", "Prompt 2")
+
+        # Add connected nodes
+        await graph.add_node("connected1", "Prompt 3")
+        await graph.add_node("connected2", "Prompt 4")
+        await graph.add_edge("connected1", "connected2", directed=True)
+
+        metrics = await graph.get_metrics()
+
+        assert metrics.node_count == 4
+        assert metrics.isolated_nodes == 2
+        assert metrics.edge_count == 1
+
+    @pytest.mark.asyncio
+    async def test_get_metrics_caching(self, tmp_path: Path) -> None:
+        """Test metrics caching with TTL."""
+        graph = AgentGraph(
+            name="test",
+            storage_backend=FilesystemBackend(base_dir=str(tmp_path)),
+        )
+
+        await graph.add_node("node1", "Prompt 1")
+        await graph.add_node("node2", "Prompt 2")
+
+        # Get metrics with caching
+        metrics1 = await graph.get_metrics(use_cache=True, cache_ttl=300)
+        original_timestamp = metrics1.timestamp
+
+        # Get metrics again (should be cached)
+        metrics2 = await graph.get_metrics(use_cache=True, cache_ttl=300)
+
+        # Timestamps should be identical (same cached object)
+        assert metrics2.timestamp == original_timestamp
+
+        # Metrics should be identical
+        assert metrics1.node_count == metrics2.node_count
+        assert metrics1.edge_count == metrics2.edge_count
+
+    @pytest.mark.asyncio
+    async def test_get_metrics_no_cache(self, tmp_path: Path) -> None:
+        """Test metrics computation without caching."""
+        graph = AgentGraph(
+            name="test",
+            storage_backend=FilesystemBackend(base_dir=str(tmp_path)),
+        )
+
+        await graph.add_node("node1", "Prompt 1")
+
+        # Get metrics without caching
+        metrics1 = await graph.get_metrics(use_cache=False)
+        timestamp1 = metrics1.timestamp
+
+        # Small delay to ensure timestamps are different
+        import time
+        time.sleep(0.01)
+
+        metrics2 = await graph.get_metrics(use_cache=False)
+        timestamp2 = metrics2.timestamp
+
+        # Timestamps should be different (fresh computation)
+        assert timestamp2 >= timestamp1
+
+    @pytest.mark.asyncio
+    async def test_get_metrics_agent_utilization(self, tmp_path: Path) -> None:
+        """Test agent utilization calculation."""
+        graph = AgentGraph(
+            name="test",
+            storage_backend=FilesystemBackend(base_dir=str(tmp_path)),
+        )
+
+        await graph.add_node("agent1", "Prompt 1")
+        await graph.add_node("agent2", "Prompt 2")
+        await graph.add_edge("agent1", "agent2", directed=True)
+
+        metrics = await graph.get_metrics()
+
+        # Both agents should have utilization entries
+        assert "agent1" in metrics.agent_utilization
+        assert "agent2" in metrics.agent_utilization
+
+        # Utilization should be a number
+        assert isinstance(metrics.agent_utilization["agent1"], float)
+        assert isinstance(metrics.agent_utilization["agent2"], float)
+
+    @pytest.mark.asyncio
+    async def test_get_metrics_error_rate_no_errors(self, tmp_path: Path) -> None:
+        """Test error rate calculation when no nodes are in error."""
+        graph = AgentGraph(
+            name="test",
+            storage_backend=FilesystemBackend(base_dir=str(tmp_path)),
+        )
+
+        await graph.add_node("node1", "Prompt 1")
+        await graph.add_node("node2", "Prompt 2")
+
+        metrics = await graph.get_metrics()
+
+        # No nodes in error, so error rate should be 0
+        assert metrics.error_rate == 0.0
+
+    @pytest.mark.asyncio
+    async def test_get_metrics_timestamp(self, tmp_path: Path) -> None:
+        """Test that metrics have a valid timestamp."""
+        from datetime import datetime, timezone
+
+        graph = AgentGraph(
+            name="test",
+            storage_backend=FilesystemBackend(base_dir=str(tmp_path)),
+        )
+
+        await graph.add_node("node1", "Prompt 1")
+
+        metrics = await graph.get_metrics()
+
+        # Timestamp should be recent (within last minute)
+        now = datetime.now(timezone.utc)
+        age = (now - metrics.timestamp).total_seconds()
+        assert 0 <= age < 60
+
+    @pytest.mark.asyncio
+    async def test_get_metrics_large_graph(self, tmp_path: Path) -> None:
+        """Test metrics on a larger graph."""
+        graph = AgentGraph(
+            name="test",
+            max_nodes=200,
+            storage_backend=FilesystemBackend(base_dir=str(tmp_path)),
+        )
+
+        # Add many nodes
+        for i in range(50):
+            await graph.add_node(f"node_{i}", f"Prompt {i}")
+
+        # Add some edges
+        for i in range(49):
+            await graph.add_edge(f"node_{i}", f"node_{i+1}", directed=True)
+
+        metrics = await graph.get_metrics()
+
+        assert metrics.node_count == 50
+        assert metrics.edge_count == 49
+        assert metrics.isolated_nodes == 0
+        assert len(metrics.agent_utilization) == 50
+
+    @pytest.mark.asyncio
+    async def test_get_metrics_returns_graphmetrics(self, tmp_path: Path) -> None:
+        """Test that get_metrics returns a GraphMetrics object."""
+        from claude_agent_graph import GraphMetrics
+
+        graph = AgentGraph(
+            name="test",
+            storage_backend=FilesystemBackend(base_dir=str(tmp_path)),
+        )
+
+        await graph.add_node("node1", "Prompt 1")
+
+        metrics = await graph.get_metrics()
+
+        assert isinstance(metrics, GraphMetrics)
+        assert hasattr(metrics, "node_count")
+        assert hasattr(metrics, "edge_count")
+        assert hasattr(metrics, "message_count")
+
+    @pytest.mark.asyncio
+    async def test_get_metrics_to_dict(self, tmp_path: Path) -> None:
+        """Test converting metrics to dictionary."""
+        graph = AgentGraph(
+            name="test",
+            storage_backend=FilesystemBackend(base_dir=str(tmp_path)),
+        )
+
+        await graph.add_node("node1", "Prompt 1")
+        await graph.add_node("node2", "Prompt 2")
+        await graph.add_edge("node1", "node2", directed=True)
+
+        metrics = await graph.get_metrics()
+        metrics_dict = metrics.to_dict()
+
+        assert isinstance(metrics_dict, dict)
+        assert metrics_dict["node_count"] == 2
+        assert metrics_dict["edge_count"] == 1
+        assert isinstance(metrics_dict["timestamp"], str)

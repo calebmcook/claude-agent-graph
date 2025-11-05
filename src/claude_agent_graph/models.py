@@ -8,6 +8,7 @@ This module defines the core data structures:
 - SharedState: Conversation state for edges
 """
 
+from dataclasses import dataclass, field as dataclass_field
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
@@ -297,3 +298,111 @@ class SharedState(BaseModel):
         return v
 
     model_config = ConfigDict()
+
+
+@dataclass
+class CachedMetric:
+    """
+    Represents a cached metric with time-to-live (TTL) validation.
+
+    Metrics can be expensive to compute (e.g., message counting from files),
+    so this dataclass provides a simple caching mechanism with TTL support.
+    """
+
+    value: Any
+    timestamp: datetime = dataclass_field(
+        default_factory=lambda: datetime.now(timezone.utc)
+    )
+    ttl_seconds: int = 300  # Default TTL: 5 minutes
+
+    def is_valid(self) -> bool:
+        """
+        Check if the cached metric is still valid based on TTL.
+
+        Returns:
+            True if metric age is less than TTL, False otherwise.
+        """
+        age_seconds = (datetime.now(timezone.utc) - self.timestamp).total_seconds()
+        return age_seconds < self.ttl_seconds
+
+
+@dataclass
+class GraphMetrics:
+    """
+    Comprehensive metrics about a graph's structure and activity.
+
+    These metrics provide insights into graph topology, agent utilization,
+    and error rates. They can be computed on-demand or cached based on TTL.
+    """
+
+    node_count: int = 0
+    """Total number of nodes in the graph."""
+
+    edge_count: int = 0
+    """Total number of edges in the graph."""
+
+    message_count: int = 0
+    """Total number of messages across all edges."""
+
+    active_conversations: int = 0
+    """Number of edges with recent message activity."""
+
+    avg_node_degree: float = 0.0
+    """Average number of connections per node."""
+
+    isolated_nodes: int = 0
+    """Number of nodes with no edges."""
+
+    agent_utilization: dict[str, float] = dataclass_field(default_factory=dict)
+    """
+    Per-agent message throughput (messages per hour).
+    Maps node_id to utilization value.
+    """
+
+    error_rate: float = 0.0
+    """
+    Fraction of operations that resulted in errors (0.0 to 1.0).
+    Computed from failed operations in time window.
+    """
+
+    timestamp: datetime = dataclass_field(
+        default_factory=lambda: datetime.now(timezone.utc)
+    )
+    """UTC timestamp when metrics were computed."""
+
+    def to_dict(self) -> dict[str, Any]:
+        """
+        Convert metrics to dictionary format.
+
+        Returns:
+            Dictionary representation of metrics with ISO format timestamp.
+        """
+        return {
+            "node_count": self.node_count,
+            "edge_count": self.edge_count,
+            "message_count": self.message_count,
+            "active_conversations": self.active_conversations,
+            "avg_node_degree": self.avg_node_degree,
+            "isolated_nodes": self.isolated_nodes,
+            "agent_utilization": self.agent_utilization,
+            "error_rate": self.error_rate,
+            "timestamp": self.timestamp.isoformat(),
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any]) -> "GraphMetrics":
+        """
+        Create GraphMetrics from a dictionary.
+
+        Args:
+            data: Dictionary containing metrics data
+
+        Returns:
+            GraphMetrics instance
+
+        Raises:
+            ValueError: If required fields are missing or invalid
+        """
+        if isinstance(data.get("timestamp"), str):
+            data["timestamp"] = datetime.fromisoformat(data["timestamp"])
+        return cls(**data)
