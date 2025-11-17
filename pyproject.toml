@@ -39,6 +39,8 @@ dependencies = [
     "networkx>=3.0",
     "pydantic>=2.0",
     "msgpack>=1.0.0",
+    "flask>=2.3.0",
+    "flask-cors>=4.0.0",
 ]
 
 [project.optional-dependencies]
@@ -51,8 +53,7 @@ dev = [
     "black>=23.0.0",
     "ruff>=0.1.0",
     "mypy>=1.0.0",
-    "flask>=2.3.0",
-    "flask-cors>=4.0.0",
+    "pre-commit>=3.0.0",
 ]
 
 [project.urls]
