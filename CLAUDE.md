@@ -166,12 +166,38 @@ Reference `IMPLEMENTATION_PLAN.md` for the full development roadmap organized in
 
 ## Testing Strategy
 
-- **Unit tests**: Individual components (Node, Edge, Message, ConversationFile)
-- **Integration tests**: Multi-agent interactions, graph modifications, persistence
-- **Performance tests**: Scalability to 1000+ nodes, message throughput, latency
-- **End-to-end tests**: Complete workflows, crash recovery scenarios
+The project uses a **comprehensive three-tier hybrid testing approach**:
 
-Target: >80% test coverage before v1.0.0 release.
+### Tier 1: Unit & Integration Tests (Fast - <2s per test)
+- **Unit tests**: Individual components and API endpoints
+- **Integration tests**: Multi-agent interactions, graph modifications, persistence
+- **Framework**: pytest with mocked Claude API responses
+- **Location**: `tests/test_flask_api.py`, `tests/test_integration.py`
+- **Target**: 26+ Flask API tests, 17+ integration tests
+
+### Tier 2: End-to-End Tests (Medium - 15-30s per test)
+- **Browser-based testing**: Complete user workflows
+- **Framework**: Playwright with Chrome/Firefox
+- **Location**: `tests/test_flask_e2e_playwright.py`
+- **Coverage**: Problem initialization → agent creation → task delegation → responses
+
+### Tier 3: Manual Testing (Real Claude API)
+- **Development server**: Flask with hot reload
+- **Real API integration**: Actual Claude API responses
+- **Purpose**: Exploration, debugging, acceptance testing
+
+### Pre-commit Hooks
+- Automatic unit test execution before commits
+- Code formatting (Black), linting (Ruff), type checking (mypy)
+- Prevents commits when tests fail
+
+### CI/CD Pipeline
+- **Platforms**: Ubuntu, macOS
+- **Python versions**: 3.10, 3.11, 3.12
+- **Coverage reporting**: Codecov integration
+- **Documentation**: [HYBRID_TESTING_STRATEGY.md](HYBRID_TESTING_STRATEGY.md)
+
+**Target**: >80% test coverage before v1.0.0 release.
 
 ## Directory Structure (planned)
 
