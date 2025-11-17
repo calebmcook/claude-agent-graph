@@ -1,0 +1,2543 @@
+
+
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+      
+      
+      
+        <link rel="prev" href="storage.html">
+      
+      
+        <link rel="next" href="topology.html">
+      
+      
+      <link rel="icon" href="">
+    
+    
+      
+        <title>Execution Modes - claude-agent-graph 0.1.0-alpha documentation</title>
+      
+    
+    
+      
+        
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+        <link rel="stylesheet" type="text/css" href="../_static/sphinx_immaterial_theme.acf80fe7f4d9ef9e2.min.css?v=9e56d0d2" />
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="light-blue">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#claude_agent_graph.execution.ExecutionMode" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../index.html" title="claude-agent-graph 0.1.0-alpha documentation" class="md-header__button md-logo" aria-label="claude-agent-graph 0.1.0-alpha documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            claude-agent-graph 0.1.0-alpha documentation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Execution Modes
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: light)" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="light-blue"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="(prefers-color-scheme: dark)" data-md-color-scheme="slate" data-md-color-primary="blue" data-md-color-accent="light-blue"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      <label class="md-header__button md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+      </label>
+      <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/calebmcook/claude-agent-graph" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81"/></svg>
+  </div>
+  <div class="md-source__repository">
+    claude-agent-graph
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+<nav class="md-nav md-nav--primary" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../index.html" title="claude-agent-graph 0.1.0-alpha documentation" class="md-nav__button md-logo" aria-label="claude-agent-graph 0.1.0-alpha documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+    </a>
+    claude-agent-graph 0.1.0-alpha documentation
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/calebmcook/claude-agent-graph" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.7.2 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2024 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81"/></svg>
+  </div>
+  <div class="md-source__repository">
+    claude-agent-graph
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_1" id="__nav_1_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    <span>User Guide</span>
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1">
+            <span class="md-nav__icon md-icon"></span>
+            <span>User Guide</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user_guide/installation.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Installation</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user_guide/quickstart.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Quick Start</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user_guide/concepts.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Core Concepts</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user_guide/topologies.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Graph Topologies</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user_guide/messaging.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Message Routing</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user_guide/execution_modes.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Execution Modes</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user_guide/storage.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Storage Backends</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user_guide/persistence.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Persistence &amp; Recovery</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user_guide/best_practices.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Best Practices</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user_guide/troubleshooting.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Troubleshooting</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../user_guide/faq.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>FAQ</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_2" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    <span>API Reference</span>
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            <span>API Reference</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="graph.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Agent<wbr>Graph API</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="models.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Data Models</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="storage.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Storage Backends</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    <span>Execution Modes</span>
+    
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="#" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Execution Modes</span>
+    
+  </span>
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary">
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#claude_agent_graph.execution.ExecutionMode" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>claude_<wbr>agent_<wbr>graph.<wbr>execution.<wbr>Execution<wbr>Mode</span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="claude_agent_graph.execution.ExecutionMode">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#claude_agent_graph.execution.ExecutionMode.__init__" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>__<wbr>init__<wbr></span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="__init__">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#claude_agent_graph.execution.ExecutionMode.__init__-parameters" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Parameters</span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Parameters">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#claude_agent_graph.execution.ExecutionMode.__init__.graph" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>graph</span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#claude_agent_graph.execution.ExecutionMode.start" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>start</span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="start">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#claude_agent_graph.execution.ExecutionMode.start-raises" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Raises</span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#claude_agent_graph.execution.ExecutionMode.stop" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>stop</span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#claude_agent_graph.execution.ManualController" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>claude_<wbr>agent_<wbr>graph.<wbr>execution.<wbr>Manual<wbr>Controller</span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="claude_agent_graph.execution.ManualController">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#claude_agent_graph.execution.ManualController.step" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>step</span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="step">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#claude_agent_graph.execution.ManualController.step-parameters" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Parameters</span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Parameters">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#claude_agent_graph.execution.ManualController.step.node_id" class="md-nav__link">
+    
+      <span aria-label="Python parameter" class="objinfo-icon objinfo-icon__sub-data" title="Python parameter">p</span>
+    
+    <span class="md-ellipsis">
+      <span title="claude_agent_graph.execution.ManualController.step.node_id (Python parameter) — ID of the agent to execute"><span>node_<wbr>id</span></span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#claude_agent_graph.execution.ManualController.step-raises" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Raises</span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#claude_agent_graph.execution.ManualController.step_all" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>step_<wbr>all</span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="step_all">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#claude_agent_graph.execution.ManualController.step_all-returns" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Returns</span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#claude_agent_graph.execution.ReactiveExecutor" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>claude_<wbr>agent_<wbr>graph.<wbr>execution.<wbr>Reactive<wbr>Executor</span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#claude_agent_graph.execution.ProactiveExecutor" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>claude_<wbr>agent_<wbr>graph.<wbr>execution.<wbr>Proactive<wbr>Executor</span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="claude_agent_graph.execution.ProactiveExecutor">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#claude_agent_graph.execution.ProactiveExecutor.__init__" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>__<wbr>init__<wbr></span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="__init__">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#claude_agent_graph.execution.ProactiveExecutor.__init__-parameters" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Parameters</span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Parameters">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#claude_agent_graph.execution.ProactiveExecutor.__init__.graph" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>graph</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#claude_agent_graph.execution.ProactiveExecutor.__init__.interval" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>interval</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#claude_agent_graph.execution.ProactiveExecutor.__init__.start_delay" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>start_<wbr>delay</span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#base-executionmode" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Base Execution<wbr>Mode</span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Base ExecutionMode">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#id0" class="md-nav__link">
+    
+      <span aria-label="Python class" class="objinfo-icon objinfo-icon__data" title="Python class">C</span>
+    
+    <span class="md-ellipsis">
+      <span title="claude_agent_graph.execution.ExecutionMode (Python class) — Reference to the AgentGraph instance"><span>claude_<wbr>agent_<wbr>graph.<wbr>execution.<wbr>Execution<wbr>Mode</span></span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="claude_agent_graph.execution.ExecutionMode">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#id1" class="md-nav__link">
+    
+      <span aria-label="Python method" class="objinfo-icon objinfo-icon__procedure" title="Python method">M</span>
+    
+    <span class="md-ellipsis">
+      <span title="claude_agent_graph.execution.ExecutionMode.__init__ (Python method) — Initialize an execution mode."><span>__<wbr>init__<wbr></span></span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="__init__">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#id1-parameters" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Parameters</span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Parameters">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#claude_agent_graph.execution.ExecutionMode.__init__.graph" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>graph</span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#id2" class="md-nav__link">
+    
+      <span aria-label="Python method" class="objinfo-icon objinfo-icon__procedure" title="Python method">M</span>
+    
+    <span class="md-ellipsis">
+      <span title="claude_agent_graph.execution.ExecutionMode.start (Python method) — Start the execution mode."><span>start</span></span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="start">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#id2-raises" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Raises</span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#id3" class="md-nav__link">
+    
+      <span aria-label="Python method" class="objinfo-icon objinfo-icon__procedure" title="Python method">M</span>
+    
+    <span class="md-ellipsis">
+      <span title="claude_agent_graph.execution.ExecutionMode.stop (Python method) — Stop the execution mode and wait for cleanup."><span>stop</span></span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#manualcontroller" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Manual<wbr>Controller</span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ManualController">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#id4" class="md-nav__link">
+    
+      <span aria-label="Python class" class="objinfo-icon objinfo-icon__data" title="Python class">C</span>
+    
+    <span class="md-ellipsis">
+      <span title="claude_agent_graph.execution.ManualController (Python class) — Manual execution mode for step-by-step control."><span>claude_<wbr>agent_<wbr>graph.<wbr>execution.<wbr>Manual<wbr>Controller</span></span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="claude_agent_graph.execution.ManualController">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#id5" class="md-nav__link">
+    
+      <span aria-label="Python method" class="objinfo-icon objinfo-icon__procedure" title="Python method">M</span>
+    
+    <span class="md-ellipsis">
+      <span title="claude_agent_graph.execution.ManualController.step (Python method) — Execute one turn for a specific agent."><span>step</span></span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="step">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#id5-parameters" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Parameters</span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Parameters">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#claude_agent_graph.execution.ManualController.step.node_id" class="md-nav__link">
+    
+      <span aria-label="Python parameter" class="objinfo-icon objinfo-icon__sub-data" title="Python parameter">p</span>
+    
+    <span class="md-ellipsis">
+      <span title="claude_agent_graph.execution.ManualController.step.node_id (Python parameter) — ID of the agent to execute"><span>node_<wbr>id</span></span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#id5-raises" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Raises</span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#id6" class="md-nav__link">
+    
+      <span aria-label="Python method" class="objinfo-icon objinfo-icon__procedure" title="Python method">M</span>
+    
+    <span class="md-ellipsis">
+      <span title="claude_agent_graph.execution.ManualController.step_all (Python method) — Execute one turn for all agents with pending messages."><span>step_<wbr>all</span></span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="step_all">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#id6-returns" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Returns</span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reactiveexecutor" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Reactive<wbr>Executor</span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ReactiveExecutor">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#id7" class="md-nav__link">
+    
+      <span aria-label="Python class" class="objinfo-icon objinfo-icon__data" title="Python class">C</span>
+    
+    <span class="md-ellipsis">
+      <span title="claude_agent_graph.execution.ReactiveExecutor (Python class) — Reactive execution mode (event-driven)."><span>claude_<wbr>agent_<wbr>graph.<wbr>execution.<wbr>Reactive<wbr>Executor</span></span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#proactiveexecutor" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Proactive<wbr>Executor</span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ProactiveExecutor">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#id8" class="md-nav__link">
+    
+      <span aria-label="Python class" class="objinfo-icon objinfo-icon__data" title="Python class">C</span>
+    
+    <span class="md-ellipsis">
+      <span title="claude_agent_graph.execution.ProactiveExecutor (Python class) — Reference to the AgentGraph instance"><span>claude_<wbr>agent_<wbr>graph.<wbr>execution.<wbr>Proactive<wbr>Executor</span></span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="claude_agent_graph.execution.ProactiveExecutor">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#id9" class="md-nav__link">
+    
+      <span aria-label="Python method" class="objinfo-icon objinfo-icon__procedure" title="Python method">M</span>
+    
+    <span class="md-ellipsis">
+      <span title="claude_agent_graph.execution.ProactiveExecutor.__init__ (Python method) — Initialize the proactive executor."><span>__<wbr>init__<wbr></span></span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="__init__">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#id9-parameters" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Parameters</span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Parameters">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#claude_agent_graph.execution.ProactiveExecutor.__init__.graph" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>graph</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#claude_agent_graph.execution.ProactiveExecutor.__init__.interval" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>interval</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#claude_agent_graph.execution.ProactiveExecutor.__init__.start_delay" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>start_<wbr>delay</span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="topology.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Topology Utilities</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="agent_manager.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Agent Session Management</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="exceptions.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Exceptions</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_3" id="__nav_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    <span>Additional Resources</span>
+    
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            <span>Additional Resources</span>
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Examples</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../changelog.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Changelog</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../contributing.html" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    <span>Contributing</span>
+    
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary">
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#claude_agent_graph.execution.ExecutionMode" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>claude_<wbr>agent_<wbr>graph.<wbr>execution.<wbr>Execution<wbr>Mode</span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="claude_agent_graph.execution.ExecutionMode">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#claude_agent_graph.execution.ExecutionMode.__init__" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>__<wbr>init__<wbr></span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="__init__">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#claude_agent_graph.execution.ExecutionMode.__init__-parameters" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Parameters</span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Parameters">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#claude_agent_graph.execution.ExecutionMode.__init__.graph" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>graph</span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#claude_agent_graph.execution.ExecutionMode.start" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>start</span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="start">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#claude_agent_graph.execution.ExecutionMode.start-raises" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Raises</span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#claude_agent_graph.execution.ExecutionMode.stop" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>stop</span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#claude_agent_graph.execution.ManualController" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>claude_<wbr>agent_<wbr>graph.<wbr>execution.<wbr>Manual<wbr>Controller</span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="claude_agent_graph.execution.ManualController">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#claude_agent_graph.execution.ManualController.step" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>step</span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="step">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#claude_agent_graph.execution.ManualController.step-parameters" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Parameters</span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Parameters">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#claude_agent_graph.execution.ManualController.step.node_id" class="md-nav__link">
+    
+      <span aria-label="Python parameter" class="objinfo-icon objinfo-icon__sub-data" title="Python parameter">p</span>
+    
+    <span class="md-ellipsis">
+      <span title="claude_agent_graph.execution.ManualController.step.node_id (Python parameter) — ID of the agent to execute"><span>node_<wbr>id</span></span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#claude_agent_graph.execution.ManualController.step-raises" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Raises</span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#claude_agent_graph.execution.ManualController.step_all" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>step_<wbr>all</span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="step_all">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#claude_agent_graph.execution.ManualController.step_all-returns" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Returns</span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#claude_agent_graph.execution.ReactiveExecutor" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>claude_<wbr>agent_<wbr>graph.<wbr>execution.<wbr>Reactive<wbr>Executor</span>
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#claude_agent_graph.execution.ProactiveExecutor" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>claude_<wbr>agent_<wbr>graph.<wbr>execution.<wbr>Proactive<wbr>Executor</span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="claude_agent_graph.execution.ProactiveExecutor">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#claude_agent_graph.execution.ProactiveExecutor.__init__" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>__<wbr>init__<wbr></span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="__init__">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#claude_agent_graph.execution.ProactiveExecutor.__init__-parameters" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Parameters</span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Parameters">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#claude_agent_graph.execution.ProactiveExecutor.__init__.graph" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>graph</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#claude_agent_graph.execution.ProactiveExecutor.__init__.interval" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>interval</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#claude_agent_graph.execution.ProactiveExecutor.__init__.start_delay" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>start_<wbr>delay</span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#base-executionmode" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Base Execution<wbr>Mode</span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Base ExecutionMode">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#id0" class="md-nav__link">
+    
+      <span aria-label="Python class" class="objinfo-icon objinfo-icon__data" title="Python class">C</span>
+    
+    <span class="md-ellipsis">
+      <span title="claude_agent_graph.execution.ExecutionMode (Python class) — Reference to the AgentGraph instance"><span>claude_<wbr>agent_<wbr>graph.<wbr>execution.<wbr>Execution<wbr>Mode</span></span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="claude_agent_graph.execution.ExecutionMode">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#id1" class="md-nav__link">
+    
+      <span aria-label="Python method" class="objinfo-icon objinfo-icon__procedure" title="Python method">M</span>
+    
+    <span class="md-ellipsis">
+      <span title="claude_agent_graph.execution.ExecutionMode.__init__ (Python method) — Initialize an execution mode."><span>__<wbr>init__<wbr></span></span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="__init__">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#id1-parameters" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Parameters</span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Parameters">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#claude_agent_graph.execution.ExecutionMode.__init__.graph" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>graph</span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#id2" class="md-nav__link">
+    
+      <span aria-label="Python method" class="objinfo-icon objinfo-icon__procedure" title="Python method">M</span>
+    
+    <span class="md-ellipsis">
+      <span title="claude_agent_graph.execution.ExecutionMode.start (Python method) — Start the execution mode."><span>start</span></span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="start">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#id2-raises" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Raises</span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#id3" class="md-nav__link">
+    
+      <span aria-label="Python method" class="objinfo-icon objinfo-icon__procedure" title="Python method">M</span>
+    
+    <span class="md-ellipsis">
+      <span title="claude_agent_graph.execution.ExecutionMode.stop (Python method) — Stop the execution mode and wait for cleanup."><span>stop</span></span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#manualcontroller" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Manual<wbr>Controller</span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ManualController">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#id4" class="md-nav__link">
+    
+      <span aria-label="Python class" class="objinfo-icon objinfo-icon__data" title="Python class">C</span>
+    
+    <span class="md-ellipsis">
+      <span title="claude_agent_graph.execution.ManualController (Python class) — Manual execution mode for step-by-step control."><span>claude_<wbr>agent_<wbr>graph.<wbr>execution.<wbr>Manual<wbr>Controller</span></span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="claude_agent_graph.execution.ManualController">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#id5" class="md-nav__link">
+    
+      <span aria-label="Python method" class="objinfo-icon objinfo-icon__procedure" title="Python method">M</span>
+    
+    <span class="md-ellipsis">
+      <span title="claude_agent_graph.execution.ManualController.step (Python method) — Execute one turn for a specific agent."><span>step</span></span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="step">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#id5-parameters" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Parameters</span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Parameters">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#claude_agent_graph.execution.ManualController.step.node_id" class="md-nav__link">
+    
+      <span aria-label="Python parameter" class="objinfo-icon objinfo-icon__sub-data" title="Python parameter">p</span>
+    
+    <span class="md-ellipsis">
+      <span title="claude_agent_graph.execution.ManualController.step.node_id (Python parameter) — ID of the agent to execute"><span>node_<wbr>id</span></span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#id5-raises" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Raises</span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#id6" class="md-nav__link">
+    
+      <span aria-label="Python method" class="objinfo-icon objinfo-icon__procedure" title="Python method">M</span>
+    
+    <span class="md-ellipsis">
+      <span title="claude_agent_graph.execution.ManualController.step_all (Python method) — Execute one turn for all agents with pending messages."><span>step_<wbr>all</span></span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="step_all">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#id6-returns" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Returns</span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#reactiveexecutor" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Reactive<wbr>Executor</span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ReactiveExecutor">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#id7" class="md-nav__link">
+    
+      <span aria-label="Python class" class="objinfo-icon objinfo-icon__data" title="Python class">C</span>
+    
+    <span class="md-ellipsis">
+      <span title="claude_agent_graph.execution.ReactiveExecutor (Python class) — Reactive execution mode (event-driven)."><span>claude_<wbr>agent_<wbr>graph.<wbr>execution.<wbr>Reactive<wbr>Executor</span></span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#proactiveexecutor" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Proactive<wbr>Executor</span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="ProactiveExecutor">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#id8" class="md-nav__link">
+    
+      <span aria-label="Python class" class="objinfo-icon objinfo-icon__data" title="Python class">C</span>
+    
+    <span class="md-ellipsis">
+      <span title="claude_agent_graph.execution.ProactiveExecutor (Python class) — Reference to the AgentGraph instance"><span>claude_<wbr>agent_<wbr>graph.<wbr>execution.<wbr>Proactive<wbr>Executor</span></span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="claude_agent_graph.execution.ProactiveExecutor">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#id9" class="md-nav__link">
+    
+      <span aria-label="Python method" class="objinfo-icon objinfo-icon__procedure" title="Python method">M</span>
+    
+    <span class="md-ellipsis">
+      <span title="claude_agent_graph.execution.ProactiveExecutor.__init__ (Python method) — Initialize the proactive executor."><span>__<wbr>init__<wbr></span></span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="__init__">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#id9-parameters" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>Parameters</span>
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Parameters">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#claude_agent_graph.execution.ProactiveExecutor.__init__.graph" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>graph</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#claude_agent_graph.execution.ProactiveExecutor.__init__.interval" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>interval</span>
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#claude_agent_graph.execution.ProactiveExecutor.__init__.start_delay" class="md-nav__link">
+    
+    <span class="md-ellipsis">
+      <span>start_<wbr>delay</span>
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset" role="main">
+                
+                
+                  
+
+
+<h1 id="execution-modes">Execution Modes<a class="headerlink" href="#execution-modes" title="Link to this heading">¶</a></h1>
+<p>Execution modes for agent orchestration.</p>
+<p id="module-claude_agent_graph.execution">Execution modes for agent graph orchestration.</p>
+<p>Defines three execution modes:
+- ManualController: Step-by-step manual control
+- ReactiveExecutor: Message-driven automatic execution
+- ProactiveExecutor: Periodic agent activation</p>
+<dl class="py class objdesc">
+<dt class="sig sig-object highlight py" id="claude_agent_graph.execution.ExecutionMode">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">claude_agent_graph.execution.</span></span><span class="sig-name descname"><span class="pre">ExecutionMode</span></span><span class="sig-paren">(</span><span class="sig-param-decl"><em class="sig-param"><a class="n reference internal" href="#id0" title="claude_agent_graph.execution.ExecutionMode.__init__.graph (Python parameter) — Reference to the AgentGraph instance"><span class="n"><span class="pre">graph</span></span></a><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="desctype"><a class="reference internal" href="graph.html#claude_agent_graph.graph.AgentGraph" title="claude_agent_graph.graph.AgentGraph (Python class) — Bases: object"><span class="pre">AgentGraph</span></a></span></span></em></span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/claude_agent_graph/execution.html#ExecutionMode"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#claude_agent_graph.execution.ExecutionMode" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference external" href="https://docs.python.org/3/library/abc.html#abc.ABC" title="(in Python v3.14)"><code class="xref py py-class docutils literal notranslate"><span class="pre">ABC</span></code></a></p>
+<p>Abstract base class for execution modes.</p>
+<p>Execution modes control how messages are processed and agents are executed
+in the graph. Only one execution mode can be active at a time.</p>
+<dl class="py method objdesc">
+<dt class="sig sig-object highlight py" id="claude_agent_graph.execution.ExecutionMode.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><span class="sig-param-decl"><em class="sig-param"><a class="n reference internal" href="#id0" title="claude_agent_graph.execution.ExecutionMode.__init__.graph (Python parameter) — Reference to the AgentGraph instance"><span class="n"><span class="pre">graph</span></span></a><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="desctype"><a class="reference internal" href="graph.html#claude_agent_graph.graph.AgentGraph" title="claude_agent_graph.graph.AgentGraph (Python class) — Bases: object"><span class="pre">AgentGraph</span></a></span></span></em></span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/claude_agent_graph/execution.html#ExecutionMode.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#claude_agent_graph.execution.ExecutionMode.__init__" title="Link to this definition">¶</a></dt>
+<dd><p>Initialize an execution mode.</p>
+<dl class="field-list simple">
+<dt class="field-odd" id="claude_agent_graph.execution.ExecutionMode.__init__-parameters">Parameters<span class="colon">:</span><a class="headerlink" href="#claude_agent_graph.execution.ExecutionMode.__init__-parameters" title="Permalink to this headline">¶</a></dt>
+<dd class="field-odd"><dl class="simple api-field highlight">
+<dt id="claude_agent_graph.execution.ExecutionMode.__init__.graph"><span class="n sig-name">graph</span><span class="p">:</span><span class="w"> </span><span class="n"><span class="desctype"><a class="reference internal" href="graph.html#claude_agent_graph.graph.AgentGraph" title="claude_agent_graph.graph.AgentGraph (Python class) — Bases: object">AgentGraph</a></span></span><a class="headerlink" href="#claude_agent_graph.execution.ExecutionMode.__init__.graph" title="Permalink to this definition">¶</a></dt><dd><p>Reference to the AgentGraph instance</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method objdesc">
+<dt class="sig sig-object highlight py" id="claude_agent_graph.execution.ExecutionMode.start">
+<em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">start</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="desctype"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span></span><a class="reference internal" href="../_modules/claude_agent_graph/execution.html#ExecutionMode.start"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#claude_agent_graph.execution.ExecutionMode.start" title="Link to this definition">¶</a></dt>
+<dd><p>Start the execution mode.</p>
+<dl class="field-list simple">
+<dt class="field-odd" id="claude_agent_graph.execution.ExecutionMode.start-raises">Raises<span class="colon">:</span><a class="headerlink" href="#claude_agent_graph.execution.ExecutionMode.start-raises" title="Permalink to this headline">¶</a></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#RuntimeError" title="(in Python v3.14)"><strong>RuntimeError</strong></a> – If execution mode is already running</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method objdesc">
+<dt class="sig sig-object highlight py" id="claude_agent_graph.execution.ExecutionMode.stop">
+<em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">stop</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="desctype"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span></span><a class="reference internal" href="../_modules/claude_agent_graph/execution.html#ExecutionMode.stop"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#claude_agent_graph.execution.ExecutionMode.stop" title="Link to this definition">¶</a></dt>
+<dd><p>Stop the execution mode and wait for cleanup.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class objdesc">
+<dt class="sig sig-object highlight sig-wrap py" id="claude_agent_graph.execution.ManualController">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">claude_agent_graph.execution.</span></span><span class="sig-name descname"><span class="pre">ManualController</span></span><span class="sig-paren">(</span><span class="sig-param-decl"><em class="sig-param"><a class="n reference internal" href="#id4" title="claude_agent_graph.execution.ManualController.__init__.graph (Python parameter)"><span class="n"><span class="pre">graph</span></span></a><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="desctype"><a class="reference internal" href="graph.html#claude_agent_graph.graph.AgentGraph" title="claude_agent_graph.graph.AgentGraph (Python class) — Bases: object"><span class="pre">AgentGraph</span></a></span></span></em></span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/claude_agent_graph/execution.html#ManualController"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#claude_agent_graph.execution.ManualController" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#id0" title="claude_agent_graph.execution.ExecutionMode (Python class) — Abstract base class for execution modes."><code class="xref py py-class docutils literal notranslate"><span class="pre">ExecutionMode</span></code></a></p>
+<p>Manual execution mode for step-by-step control.</p>
+<p>The graph doesn’t automatically process messages. The user must explicitly
+call step() to execute specific agents or step_all() to execute all agents
+with pending messages.</p>
+<dl class="py method objdesc">
+<dt class="sig sig-object highlight py" id="claude_agent_graph.execution.ManualController.step">
+<em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">step</span></span><span class="sig-paren">(</span><span class="sig-param-decl"><em class="sig-param"><a class="n reference internal" href="#claude_agent_graph.execution.ManualController.step.node_id" title="claude_agent_graph.execution.ManualController.step.node_id (Python parameter) — ID of the agent to execute"><span class="n"><span class="pre">node_id</span></span></a><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="desctype"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></span></em></span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="desctype"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span></span><a class="reference internal" href="../_modules/claude_agent_graph/execution.html#ManualController.step"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#claude_agent_graph.execution.ManualController.step" title="Link to this definition">¶</a></dt>
+<dd><p>Execute one turn for a specific agent.</p>
+<p>Processes one pending message from the agent’s queue, if any.
+If no messages are pending, does nothing.</p>
+<dl class="field-list simple">
+<dt class="field-odd" id="claude_agent_graph.execution.ManualController.step-parameters">Parameters<span class="colon">:</span><a class="headerlink" href="#claude_agent_graph.execution.ManualController.step-parameters" title="Permalink to this headline">¶</a></dt>
+<dd class="field-odd"><dl class="simple api-field highlight">
+<dt id="claude_agent_graph.execution.ManualController.step.node_id"><span class="n sig-name">node_id</span><span class="p">:</span><span class="w"> </span><span class="n"><span class="desctype"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)">str</a></span></span><a class="headerlink" href="#claude_agent_graph.execution.ManualController.step.node_id" title="Permalink to this definition">¶</a></dt><dd><p>ID of the agent to execute</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-even" id="claude_agent_graph.execution.ManualController.step-raises">Raises<span class="colon">:</span><a class="headerlink" href="#claude_agent_graph.execution.ManualController.step-raises" title="Permalink to this headline">¶</a></dt>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.14)"><strong>ValueError</strong></a> – If node_id doesn’t exist</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method objdesc">
+<dt class="sig sig-object highlight py" id="claude_agent_graph.execution.ManualController.step_all">
+<em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">step_all</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="desctype"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span></span></span><a class="reference internal" href="../_modules/claude_agent_graph/execution.html#ManualController.step_all"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#claude_agent_graph.execution.ManualController.step_all" title="Link to this definition">¶</a></dt>
+<dd><p>Execute one turn for all agents with pending messages.</p>
+<dl class="field-list simple">
+<dt class="field-odd" id="claude_agent_graph.execution.ManualController.step_all-returns">Returns<span class="colon">:</span><a class="headerlink" href="#claude_agent_graph.execution.ManualController.step_all-returns" title="Permalink to this headline">¶</a></dt>
+<dd class="field-odd"><p>Number of agents that had pending messages and were executed</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py class objdesc">
+<dt class="sig sig-object highlight sig-wrap py" id="claude_agent_graph.execution.ReactiveExecutor">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">claude_agent_graph.execution.</span></span><span class="sig-name descname"><span class="pre">ReactiveExecutor</span></span><span class="sig-paren">(</span><span class="sig-param-decl"><em class="sig-param"><a class="n reference internal" href="#id7" title="claude_agent_graph.execution.ReactiveExecutor.__init__.graph (Python parameter)"><span class="n"><span class="pre">graph</span></span></a><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="desctype"><a class="reference internal" href="graph.html#claude_agent_graph.graph.AgentGraph" title="claude_agent_graph.graph.AgentGraph (Python class) — Bases: object"><span class="pre">AgentGraph</span></a></span></span></em></span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/claude_agent_graph/execution.html#ReactiveExecutor"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#claude_agent_graph.execution.ReactiveExecutor" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#id0" title="claude_agent_graph.execution.ExecutionMode (Python class) — Abstract base class for execution modes."><code class="xref py py-class docutils literal notranslate"><span class="pre">ExecutionMode</span></code></a></p>
+<p>Reactive execution mode (event-driven).</p>
+<p>Automatically processes messages from agent queues as they arrive.
+When a message is added to an agent’s queue, the agent processes it
+asynchronously.</p>
+</dd></dl>
+
+<dl class="py class objdesc">
+<dt class="sig sig-object highlight sig-wrap py" id="claude_agent_graph.execution.ProactiveExecutor">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">claude_agent_graph.execution.</span></span><span class="sig-name descname"><span class="pre">ProactiveExecutor</span></span><span class="sig-paren">(</span><span class="sig-param-decl"><em class="sig-param"><a class="n reference internal" href="#id8" title="claude_agent_graph.execution.ProactiveExecutor.__init__.graph (Python parameter) — Reference to the AgentGraph instance"><span class="n"><span class="pre">graph</span></span></a><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="desctype"><a class="reference internal" href="graph.html#claude_agent_graph.graph.AgentGraph" title="claude_agent_graph.graph.AgentGraph (Python class) — Bases: object"><span class="pre">AgentGraph</span></a></span></span></em>, </span><span class="sig-param-decl"><em class="sig-param"><a class="n reference internal" href="#id8" title="claude_agent_graph.execution.ProactiveExecutor.__init__.interval (Python parameter) — Seconds between agent activations (default: 60)"><span class="n"><span class="pre">interval</span></span></a><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="desctype"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><code class="code python default_value docutils literal highlight highlight-python"><span class="mf">60.0</span></code></em>, </span><span class="sig-param-decl"><em class="sig-param"><a class="n reference internal" href="#id8" title="claude_agent_graph.execution.ProactiveExecutor.__init__.start_delay (Python parameter) — Seconds before first activation (default: 0)"><span class="n"><span class="pre">start_delay</span></span></a><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="desctype"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><code class="code python default_value docutils literal highlight highlight-python"><span class="mf">0.0</span></code></em></span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/claude_agent_graph/execution.html#ProactiveExecutor"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#claude_agent_graph.execution.ProactiveExecutor" title="Link to this definition">¶</a></dt>
+<dd><p>Bases: <a class="reference internal" href="#id0" title="claude_agent_graph.execution.ExecutionMode (Python class) — Abstract base class for execution modes."><code class="xref py py-class docutils literal notranslate"><span class="pre">ExecutionMode</span></code></a></p>
+<p>Proactive execution mode (periodic agent activation).</p>
+<p>Agents wake up periodically and can initiate conversations without waiting
+for incoming messages. Useful for polling, monitoring, or background tasks.</p>
+<dl class="py method objdesc">
+<dt class="sig sig-object highlight sig-wrap py" id="claude_agent_graph.execution.ProactiveExecutor.__init__">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><span class="sig-param-decl"><em class="sig-param"><a class="n reference internal" href="#id8" title="claude_agent_graph.execution.ProactiveExecutor.__init__.graph (Python parameter) — Reference to the AgentGraph instance"><span class="n"><span class="pre">graph</span></span></a><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="desctype"><a class="reference internal" href="graph.html#claude_agent_graph.graph.AgentGraph" title="claude_agent_graph.graph.AgentGraph (Python class) — Bases: object"><span class="pre">AgentGraph</span></a></span></span></em>, </span><span class="sig-param-decl"><em class="sig-param"><a class="n reference internal" href="#id8" title="claude_agent_graph.execution.ProactiveExecutor.__init__.interval (Python parameter) — Seconds between agent activations (default: 60)"><span class="n"><span class="pre">interval</span></span></a><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="desctype"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><code class="code python default_value docutils literal highlight highlight-python"><span class="mf">60.0</span></code></em>, </span><span class="sig-param-decl"><em class="sig-param"><a class="n reference internal" href="#id8" title="claude_agent_graph.execution.ProactiveExecutor.__init__.start_delay (Python parameter) — Seconds before first activation (default: 0)"><span class="n"><span class="pre">start_delay</span></span></a><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="desctype"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><code class="code python default_value docutils literal highlight highlight-python"><span class="mf">0.0</span></code></em></span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/claude_agent_graph/execution.html#ProactiveExecutor.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#claude_agent_graph.execution.ProactiveExecutor.__init__" title="Link to this definition">¶</a></dt>
+<dd><p>Initialize the proactive executor.</p>
+<dl class="field-list simple">
+<dt class="field-odd" id="claude_agent_graph.execution.ProactiveExecutor.__init__-parameters">Parameters<span class="colon">:</span><a class="headerlink" href="#claude_agent_graph.execution.ProactiveExecutor.__init__-parameters" title="Permalink to this headline">¶</a></dt>
+<dd class="field-odd"><dl class="simple api-field highlight">
+<dt id="claude_agent_graph.execution.ProactiveExecutor.__init__.graph"><span class="n sig-name">graph</span><span class="p">:</span><span class="w"> </span><span class="n"><span class="desctype"><a class="reference internal" href="graph.html#claude_agent_graph.graph.AgentGraph" title="claude_agent_graph.graph.AgentGraph (Python class) — Bases: object">AgentGraph</a></span></span><a class="headerlink" href="#claude_agent_graph.execution.ProactiveExecutor.__init__.graph" title="Permalink to this definition">¶</a></dt><dd><p>Reference to the AgentGraph instance</p>
+</dd>
+<dt id="claude_agent_graph.execution.ProactiveExecutor.__init__.interval"><span class="n sig-name">interval</span><span class="p">:</span><span class="w"> </span><span class="n"><span class="desctype"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)">float</a></span></span><span class="w"> </span><span class="o">=</span><span class="w"> </span><code class="code python default_value docutils literal highlight highlight-python"><span class="mf">60.0</span></code><a class="headerlink" href="#claude_agent_graph.execution.ProactiveExecutor.__init__.interval" title="Permalink to this definition">¶</a></dt><dd><p>Seconds between agent activations (default: 60)</p>
+</dd>
+<dt id="claude_agent_graph.execution.ProactiveExecutor.__init__.start_delay"><span class="n sig-name">start_delay</span><span class="p">:</span><span class="w"> </span><span class="n"><span class="desctype"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)">float</a></span></span><span class="w"> </span><span class="o">=</span><span class="w"> </span><code class="code python default_value docutils literal highlight highlight-python"><span class="mf">0.0</span></code><a class="headerlink" href="#claude_agent_graph.execution.ProactiveExecutor.__init__.start_delay" title="Permalink to this definition">¶</a></dt><dd><p>Seconds before first activation (default: 0)</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<h2 id="base-executionmode">Base ExecutionMode<a class="headerlink" href="#base-executionmode" title="Link to this heading">¶</a></h2>
+<dl class="py class objdesc">
+<dt class="sig sig-object highlight py" id="id0">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">claude_agent_graph.execution.</span></span><span class="sig-name descname"><span class="pre">ExecutionMode</span></span><span class="sig-paren">(</span><span class="sig-param-decl"><em class="sig-param"><a class="n reference internal" href="#id0" title="claude_agent_graph.execution.ExecutionMode.__init__.graph (Python parameter) — Reference to the AgentGraph instance"><span class="n"><span class="pre">graph</span></span></a><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="desctype"><a class="reference internal" href="graph.html#claude_agent_graph.graph.AgentGraph" title="claude_agent_graph.graph.AgentGraph (Python class) — Bases: object"><span class="pre">AgentGraph</span></a></span></span></em></span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/claude_agent_graph/execution.html#ExecutionMode"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#id0" title="Link to this definition">¶</a></dt>
+<dd><p>Abstract base class for execution modes.</p>
+<p>Execution modes control how messages are processed and agents are executed
+in the graph. Only one execution mode can be active at a time.</p>
+<dl class="py method objdesc">
+<dt class="sig sig-object highlight py" id="id1">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><span class="sig-param-decl"><em class="sig-param"><a class="n reference internal" href="#id0" title="claude_agent_graph.execution.ExecutionMode.__init__.graph (Python parameter) — Reference to the AgentGraph instance"><span class="n"><span class="pre">graph</span></span></a><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="desctype"><a class="reference internal" href="graph.html#claude_agent_graph.graph.AgentGraph" title="claude_agent_graph.graph.AgentGraph (Python class) — Bases: object"><span class="pre">AgentGraph</span></a></span></span></em></span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/claude_agent_graph/execution.html#ExecutionMode.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#id1" title="Link to this definition">¶</a></dt>
+<dd><p>Initialize an execution mode.</p>
+<dl class="field-list simple">
+<dt class="field-odd" id="id1-parameters">Parameters<span class="colon">:</span><a class="headerlink" href="#id1-parameters" title="Permalink to this headline">¶</a></dt>
+<dd class="field-odd"><dl class="simple api-field highlight">
+<dt id="claude_agent_graph.execution.ExecutionMode.__init__.graph"><span class="n sig-name">graph</span><span class="p">:</span><span class="w"> </span><span class="n"><span class="desctype"><a class="reference internal" href="graph.html#claude_agent_graph.graph.AgentGraph" title="claude_agent_graph.graph.AgentGraph (Python class) — Bases: object">AgentGraph</a></span></span><a class="headerlink" href="#claude_agent_graph.execution.ExecutionMode.__init__.graph" title="Permalink to this definition">¶</a></dt><dd><p>Reference to the AgentGraph instance</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method objdesc">
+<dt class="sig sig-object highlight py" id="id2">
+<em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">start</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="desctype"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span></span><a class="reference internal" href="../_modules/claude_agent_graph/execution.html#ExecutionMode.start"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#id2" title="Link to this definition">¶</a></dt>
+<dd><p>Start the execution mode.</p>
+<dl class="field-list simple">
+<dt class="field-odd" id="id2-raises">Raises<span class="colon">:</span><a class="headerlink" href="#id2-raises" title="Permalink to this headline">¶</a></dt>
+<dd class="field-odd"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#RuntimeError" title="(in Python v3.14)"><strong>RuntimeError</strong></a> – If execution mode is already running</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method objdesc">
+<dt class="sig sig-object highlight py" id="id3">
+<em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">stop</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="desctype"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span></span><a class="reference internal" href="../_modules/claude_agent_graph/execution.html#ExecutionMode.stop"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#id3" title="Link to this definition">¶</a></dt>
+<dd><p>Stop the execution mode and wait for cleanup.</p>
+</dd></dl>
+
+</dd></dl>
+
+<h2 id="manualcontroller">ManualController<a class="headerlink" href="#manualcontroller" title="Link to this heading">¶</a></h2>
+<dl class="py class objdesc">
+<dt class="sig sig-object highlight sig-wrap py" id="id4">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">claude_agent_graph.execution.</span></span><span class="sig-name descname"><span class="pre">ManualController</span></span><span class="sig-paren">(</span><span class="sig-param-decl"><em class="sig-param"><a class="n reference internal" href="#id4" title="claude_agent_graph.execution.ManualController.__init__.graph (Python parameter)"><span class="n"><span class="pre">graph</span></span></a><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="desctype"><a class="reference internal" href="graph.html#claude_agent_graph.graph.AgentGraph" title="claude_agent_graph.graph.AgentGraph (Python class) — Bases: object"><span class="pre">AgentGraph</span></a></span></span></em></span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/claude_agent_graph/execution.html#ManualController"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#id4" title="Link to this definition">¶</a></dt>
+<dd><p>Manual execution mode for step-by-step control.</p>
+<p>The graph doesn’t automatically process messages. The user must explicitly
+call step() to execute specific agents or step_all() to execute all agents
+with pending messages.</p>
+<dl class="py method objdesc">
+<dt class="sig sig-object highlight py" id="id5">
+<em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">step</span></span><span class="sig-paren">(</span><span class="sig-param-decl"><em class="sig-param"><a class="n reference internal" href="#claude_agent_graph.execution.ManualController.step.node_id" title="claude_agent_graph.execution.ManualController.step.node_id (Python parameter) — ID of the agent to execute"><span class="n"><span class="pre">node_id</span></span></a><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="desctype"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)"><span class="pre">str</span></a></span></span></em></span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="desctype"><a class="reference external" href="https://docs.python.org/3/library/constants.html#None" title="(in Python v3.14)"><span class="pre">None</span></a></span></span></span><a class="reference internal" href="../_modules/claude_agent_graph/execution.html#ManualController.step"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#id5" title="Link to this definition">¶</a></dt>
+<dd><p>Execute one turn for a specific agent.</p>
+<p>Processes one pending message from the agent’s queue, if any.
+If no messages are pending, does nothing.</p>
+<dl class="field-list simple">
+<dt class="field-odd" id="id5-parameters">Parameters<span class="colon">:</span><a class="headerlink" href="#id5-parameters" title="Permalink to this headline">¶</a></dt>
+<dd class="field-odd"><dl class="simple api-field highlight">
+<dt id="claude_agent_graph.execution.ManualController.step.node_id"><span class="n sig-name">node_id</span><span class="p">:</span><span class="w"> </span><span class="n"><span class="desctype"><a class="reference external" href="https://docs.python.org/3/library/stdtypes.html#str" title="(in Python v3.14)">str</a></span></span><a class="headerlink" href="#claude_agent_graph.execution.ManualController.step.node_id" title="Permalink to this definition">¶</a></dt><dd><p>ID of the agent to execute</p>
+</dd>
+</dl>
+</dd>
+<dt class="field-even" id="id5-raises">Raises<span class="colon">:</span><a class="headerlink" href="#id5-raises" title="Permalink to this headline">¶</a></dt>
+<dd class="field-even"><p><a class="reference external" href="https://docs.python.org/3/library/exceptions.html#ValueError" title="(in Python v3.14)"><strong>ValueError</strong></a> – If node_id doesn’t exist</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method objdesc">
+<dt class="sig sig-object highlight py" id="id6">
+<em class="property"><span class="k"><span class="pre">async</span></span><span class="w"> </span></em><span class="sig-name descname"><span class="pre">step_all</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span> <span class="sig-return"><span class="sig-return-icon">&#x2192;</span> <span class="sig-return-typehint"><span class="desctype"><a class="reference external" href="https://docs.python.org/3/library/functions.html#int" title="(in Python v3.14)"><span class="pre">int</span></a></span></span></span><a class="reference internal" href="../_modules/claude_agent_graph/execution.html#ManualController.step_all"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#id6" title="Link to this definition">¶</a></dt>
+<dd><p>Execute one turn for all agents with pending messages.</p>
+<dl class="field-list simple">
+<dt class="field-odd" id="id6-returns">Returns<span class="colon">:</span><a class="headerlink" href="#id6-returns" title="Permalink to this headline">¶</a></dt>
+<dd class="field-odd"><p>Number of agents that had pending messages and were executed</p>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+<h2 id="reactiveexecutor">ReactiveExecutor<a class="headerlink" href="#reactiveexecutor" title="Link to this heading">¶</a></h2>
+<dl class="py class objdesc">
+<dt class="sig sig-object highlight sig-wrap py" id="id7">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">claude_agent_graph.execution.</span></span><span class="sig-name descname"><span class="pre">ReactiveExecutor</span></span><span class="sig-paren">(</span><span class="sig-param-decl"><em class="sig-param"><a class="n reference internal" href="#id7" title="claude_agent_graph.execution.ReactiveExecutor.__init__.graph (Python parameter)"><span class="n"><span class="pre">graph</span></span></a><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="desctype"><a class="reference internal" href="graph.html#claude_agent_graph.graph.AgentGraph" title="claude_agent_graph.graph.AgentGraph (Python class) — Bases: object"><span class="pre">AgentGraph</span></a></span></span></em></span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/claude_agent_graph/execution.html#ReactiveExecutor"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#id7" title="Link to this definition">¶</a></dt>
+<dd><p>Reactive execution mode (event-driven).</p>
+<p>Automatically processes messages from agent queues as they arrive.
+When a message is added to an agent’s queue, the agent processes it
+asynchronously.</p>
+</dd></dl>
+
+<h2 id="proactiveexecutor">ProactiveExecutor<a class="headerlink" href="#proactiveexecutor" title="Link to this heading">¶</a></h2>
+<dl class="py class objdesc">
+<dt class="sig sig-object highlight sig-wrap py" id="id8">
+<em class="property"><span class="k"><span class="pre">class</span></span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">claude_agent_graph.execution.</span></span><span class="sig-name descname"><span class="pre">ProactiveExecutor</span></span><span class="sig-paren">(</span><span class="sig-param-decl"><em class="sig-param"><a class="n reference internal" href="#id8" title="claude_agent_graph.execution.ProactiveExecutor.__init__.graph (Python parameter) — Reference to the AgentGraph instance"><span class="n"><span class="pre">graph</span></span></a><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="desctype"><a class="reference internal" href="graph.html#claude_agent_graph.graph.AgentGraph" title="claude_agent_graph.graph.AgentGraph (Python class) — Bases: object"><span class="pre">AgentGraph</span></a></span></span></em>, </span><span class="sig-param-decl"><em class="sig-param"><a class="n reference internal" href="#id8" title="claude_agent_graph.execution.ProactiveExecutor.__init__.interval (Python parameter) — Seconds between agent activations (default: 60)"><span class="n"><span class="pre">interval</span></span></a><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="desctype"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><code class="code python default_value docutils literal highlight highlight-python"><span class="mf">60.0</span></code></em>, </span><span class="sig-param-decl"><em class="sig-param"><a class="n reference internal" href="#id8" title="claude_agent_graph.execution.ProactiveExecutor.__init__.start_delay (Python parameter) — Seconds before first activation (default: 0)"><span class="n"><span class="pre">start_delay</span></span></a><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="desctype"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><code class="code python default_value docutils literal highlight highlight-python"><span class="mf">0.0</span></code></em></span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/claude_agent_graph/execution.html#ProactiveExecutor"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#id8" title="Link to this definition">¶</a></dt>
+<dd><p>Proactive execution mode (periodic agent activation).</p>
+<p>Agents wake up periodically and can initiate conversations without waiting
+for incoming messages. Useful for polling, monitoring, or background tasks.</p>
+<dl class="py method objdesc">
+<dt class="sig sig-object highlight sig-wrap py" id="id9">
+<span class="sig-name descname"><span class="pre">__init__</span></span><span class="sig-paren">(</span><span class="sig-param-decl"><em class="sig-param"><a class="n reference internal" href="#id8" title="claude_agent_graph.execution.ProactiveExecutor.__init__.graph (Python parameter) — Reference to the AgentGraph instance"><span class="n"><span class="pre">graph</span></span></a><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="desctype"><a class="reference internal" href="graph.html#claude_agent_graph.graph.AgentGraph" title="claude_agent_graph.graph.AgentGraph (Python class) — Bases: object"><span class="pre">AgentGraph</span></a></span></span></em>, </span><span class="sig-param-decl"><em class="sig-param"><a class="n reference internal" href="#id8" title="claude_agent_graph.execution.ProactiveExecutor.__init__.interval (Python parameter) — Seconds between agent activations (default: 60)"><span class="n"><span class="pre">interval</span></span></a><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="desctype"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><code class="code python default_value docutils literal highlight highlight-python"><span class="mf">60.0</span></code></em>, </span><span class="sig-param-decl"><em class="sig-param"><a class="n reference internal" href="#id8" title="claude_agent_graph.execution.ProactiveExecutor.__init__.start_delay (Python parameter) — Seconds before first activation (default: 0)"><span class="n"><span class="pre">start_delay</span></span></a><span class="p"><span class="pre">:</span></span><span class="w"> </span><span class="n"><span class="desctype"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)"><span class="pre">float</span></a></span></span><span class="w"> </span><span class="o"><span class="pre">=</span></span><span class="w"> </span><code class="code python default_value docutils literal highlight highlight-python"><span class="mf">0.0</span></code></em></span><span class="sig-paren">)</span><a class="reference internal" href="../_modules/claude_agent_graph/execution.html#ProactiveExecutor.__init__"><span class="viewcode-link"><span class="pre">[source]</span></span></a><a class="headerlink" href="#id9" title="Link to this definition">¶</a></dt>
+<dd><p>Initialize the proactive executor.</p>
+<dl class="field-list simple">
+<dt class="field-odd" id="id9-parameters">Parameters<span class="colon">:</span><a class="headerlink" href="#id9-parameters" title="Permalink to this headline">¶</a></dt>
+<dd class="field-odd"><dl class="simple api-field highlight">
+<dt id="claude_agent_graph.execution.ProactiveExecutor.__init__.graph"><span class="n sig-name">graph</span><span class="p">:</span><span class="w"> </span><span class="n"><span class="desctype"><a class="reference internal" href="graph.html#claude_agent_graph.graph.AgentGraph" title="claude_agent_graph.graph.AgentGraph (Python class) — Bases: object">AgentGraph</a></span></span><a class="headerlink" href="#claude_agent_graph.execution.ProactiveExecutor.__init__.graph" title="Permalink to this definition">¶</a></dt><dd><p>Reference to the AgentGraph instance</p>
+</dd>
+<dt id="claude_agent_graph.execution.ProactiveExecutor.__init__.interval"><span class="n sig-name">interval</span><span class="p">:</span><span class="w"> </span><span class="n"><span class="desctype"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)">float</a></span></span><span class="w"> </span><span class="o">=</span><span class="w"> </span><code class="code python default_value docutils literal highlight highlight-python"><span class="mf">60.0</span></code><a class="headerlink" href="#claude_agent_graph.execution.ProactiveExecutor.__init__.interval" title="Permalink to this definition">¶</a></dt><dd><p>Seconds between agent activations (default: 60)</p>
+</dd>
+<dt id="claude_agent_graph.execution.ProactiveExecutor.__init__.start_delay"><span class="n sig-name">start_delay</span><span class="p">:</span><span class="w"> </span><span class="n"><span class="desctype"><a class="reference external" href="https://docs.python.org/3/library/functions.html#float" title="(in Python v3.14)">float</a></span></span><span class="w"> </span><span class="o">=</span><span class="w"> </span><code class="code python default_value docutils literal highlight highlight-python"><span class="mf">0.0</span></code><a class="headerlink" href="#claude_agent_graph.execution.ProactiveExecutor.__init__.start_delay" title="Permalink to this definition">¶</a></dt><dd><p>Seconds before first activation (default: 0)</p>
+</dd>
+</dl>
+</dd>
+</dl>
+</dd></dl>
+
+</dd></dl>
+
+
+
+
+
+
+
+  
+  
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  
+  
+  <div class="md-footer-meta md-typeset">
+    
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-footer-copyright__highlight">
+        &#169; Copyright 2025, Implementation Team.
+        
+    </div>
+  
+    Created using
+    <a href="https://www.sphinx-doc.org/" target="_blank" rel="noopener">Sphinx</a>
+    8.2.3.
+     and
+    <a href="https://github.com/jbms/sphinx-immaterial/" target="_blank" rel="noopener">Sphinx-Immaterial</a>
+  
+</div>
+      
+    </div>
+    
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    <script id="__config" type="application/json">{"base": "..", "features": [], "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    
+      
+        <script src="../_static/sphinx_immaterial_theme.32136f45f91ae6956.min.js?v=a7a9472a"></script>
+    
+  </body>
+</html>
