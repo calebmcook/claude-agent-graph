@@ -10,6 +10,7 @@ import tempfile
 from pathlib import Path
 
 from claude_agent_graph import AgentGraph
+from claude_agent_graph.backends import FilesystemBackend
 from claude_agent_graph.execution import ManualController
 
 
@@ -29,8 +30,7 @@ class TestCompleteWorkflows:
         with tempfile.TemporaryDirectory() as tmpdir:
             graph = AgentGraph(
                 name="supervisor_worker",
-                storage_backend="filesystem",
-                storage_path=tmpdir,
+                storage_backend=FilesystemBackend(base_dir=tmpdir),
             )
 
             # Setup hierarchy
@@ -73,8 +73,7 @@ class TestCompleteWorkflows:
         with tempfile.TemporaryDirectory() as tmpdir:
             graph = AgentGraph(
                 name="research_team",
-                storage_backend="filesystem",
-                storage_path=tmpdir,
+                storage_backend=FilesystemBackend(base_dir=tmpdir),
             )
 
             # Create team members
@@ -130,8 +129,7 @@ class TestCompleteWorkflows:
         with tempfile.TemporaryDirectory() as tmpdir:
             graph = AgentGraph(
                 name="org_hierarchy",
-                storage_backend="filesystem",
-                storage_path=tmpdir,
+                storage_backend=FilesystemBackend(base_dir=tmpdir),
                 topology_constraint="tree",
             )
 
@@ -188,8 +186,7 @@ class TestCompleteWorkflows:
         with tempfile.TemporaryDirectory() as tmpdir:
             graph = AgentGraph(
                 name="consensus_mesh",
-                storage_backend="filesystem",
-                storage_path=tmpdir,
+                storage_backend=FilesystemBackend(base_dir=tmpdir),
             )
 
             # Create mesh
@@ -240,8 +237,7 @@ class TestPersistenceAndRecovery:
             # Phase 1: Create and populate graph
             graph1 = AgentGraph(
                 name="persistence_test",
-                storage_backend="filesystem",
-                storage_path=tmpdir,
+                storage_backend=FilesystemBackend(base_dir=tmpdir),
             )
 
             await graph1.add_node("alice", "You are Alice.")
@@ -289,8 +285,7 @@ class TestPersistenceAndRecovery:
             # Create graph with auto-save
             graph1 = AgentGraph(
                 name="auto_save_test",
-                storage_backend="filesystem",
-                storage_path=tmpdir,
+                storage_backend=FilesystemBackend(base_dir=tmpdir),
                 auto_save=True,
                 auto_save_interval=1,  # 1 second for testing
                 checkpoint_dir=str(checkpoint_dir),
@@ -337,8 +332,7 @@ class TestDynamicGraphEvolution:
         with tempfile.TemporaryDirectory() as tmpdir:
             graph = AgentGraph(
                 name="dynamic_evolution",
-                storage_backend="filesystem",
-                storage_path=tmpdir,
+                storage_backend=FilesystemBackend(base_dir=tmpdir),
             )
 
             # Initial setup
@@ -380,8 +374,7 @@ class TestDynamicGraphEvolution:
         with tempfile.TemporaryDirectory() as tmpdir:
             graph = AgentGraph(
                 name="scaling_test",
-                storage_backend="filesystem",
-                storage_path=tmpdir,
+                storage_backend=FilesystemBackend(base_dir=tmpdir),
                 max_nodes=100,
             )
 
@@ -424,8 +417,7 @@ class TestErrorRecoveryE2E:
         with tempfile.TemporaryDirectory() as tmpdir:
             graph = AgentGraph(
                 name="recovery_test",
-                storage_backend="filesystem",
-                storage_path=tmpdir,
+                storage_backend=FilesystemBackend(base_dir=tmpdir),
                 topology_constraint="tree",
             )
 
@@ -470,8 +462,7 @@ class TestExecutionModes:
         with tempfile.TemporaryDirectory() as tmpdir:
             graph = AgentGraph(
                 name="manual_test",
-                storage_backend="filesystem",
-                storage_path=tmpdir,
+                storage_backend=FilesystemBackend(base_dir=tmpdir),
             )
 
             await graph.add_node("node1", "Node 1")
@@ -512,8 +503,7 @@ class TestLargeScaleOperations:
         with tempfile.TemporaryDirectory() as tmpdir:
             graph = AgentGraph(
                 name="large_scale_test",
-                storage_backend="filesystem",
-                storage_path=tmpdir,
+                storage_backend=FilesystemBackend(base_dir=tmpdir),
                 max_nodes=150,
             )
 
@@ -557,8 +547,7 @@ class TestLargeScaleOperations:
         with tempfile.TemporaryDirectory() as tmpdir:
             graph = AgentGraph(
                 name="high_volume_test",
-                storage_backend="filesystem",
-                storage_path=tmpdir,
+                storage_backend=FilesystemBackend(base_dir=tmpdir),
             )
 
             await graph.add_node("sender", "Sender")

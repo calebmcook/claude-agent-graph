@@ -12,6 +12,7 @@ from pathlib import Path
 import pytest
 
 from claude_agent_graph import AgentGraph
+from claude_agent_graph.backends import FilesystemBackend
 from claude_agent_graph.exceptions import (
     DuplicateEdgeError,
     NodeNotFoundError,
@@ -27,8 +28,7 @@ class TestBasicGraphIntegration:
         with tempfile.TemporaryDirectory() as tmpdir:
             graph = AgentGraph(
                 name="integration_test",
-                storage_backend="filesystem",
-                storage_path=tmpdir,
+                storage_backend=FilesystemBackend(base_dir=tmpdir),
             )
 
             # Add nodes
@@ -54,8 +54,7 @@ class TestBasicGraphIntegration:
         with tempfile.TemporaryDirectory() as tmpdir:
             graph = AgentGraph(
                 name="messaging_test",
-                storage_backend="filesystem",
-                storage_path=tmpdir,
+                storage_backend=FilesystemBackend(base_dir=tmpdir),
             )
 
             await graph.add_node("alice", "You are Alice.")
@@ -83,8 +82,7 @@ class TestBasicGraphIntegration:
         with tempfile.TemporaryDirectory() as tmpdir:
             graph = AgentGraph(
                 name="control_test",
-                storage_backend="filesystem",
-                storage_path=tmpdir,
+                storage_backend=FilesystemBackend(base_dir=tmpdir),
             )
 
             await graph.add_node("controller", "You are a controller.")
@@ -92,8 +90,7 @@ class TestBasicGraphIntegration:
             await graph.add_edge("controller", "subordinate", directed=True)
 
             # Get effective prompt
-            node = graph.get_node("subordinate")
-            effective_prompt = graph._compute_effective_prompt(node)
+            effective_prompt = graph._compute_effective_prompt("subordinate")
 
             # Should contain controller information
             assert "controller" in effective_prompt.lower()
@@ -108,8 +105,7 @@ class TestMultiNodeIntegration:
         with tempfile.TemporaryDirectory() as tmpdir:
             graph = AgentGraph(
                 name="hierarchy_test",
-                storage_backend="filesystem",
-                storage_path=tmpdir,
+                storage_backend=FilesystemBackend(base_dir=tmpdir),
             )
 
             # Create hierarchy: manager -> team_lead -> worker
@@ -140,8 +136,7 @@ class TestMultiNodeIntegration:
         with tempfile.TemporaryDirectory() as tmpdir:
             graph = AgentGraph(
                 name="mesh_test",
-                storage_backend="filesystem",
-                storage_path=tmpdir,
+                storage_backend=FilesystemBackend(base_dir=tmpdir),
             )
 
             # Create mesh network
@@ -172,8 +167,7 @@ class TestDynamicGraphModification:
         with tempfile.TemporaryDirectory() as tmpdir:
             graph = AgentGraph(
                 name="dynamic_test",
-                storage_backend="filesystem",
-                storage_path=tmpdir,
+                storage_backend=FilesystemBackend(base_dir=tmpdir),
             )
 
             # Initial setup
@@ -193,8 +187,7 @@ class TestDynamicGraphModification:
         with tempfile.TemporaryDirectory() as tmpdir:
             graph = AgentGraph(
                 name="removal_test",
-                storage_backend="filesystem",
-                storage_path=tmpdir,
+                storage_backend=FilesystemBackend(base_dir=tmpdir),
             )
 
             await graph.add_node("central", "Central node")
@@ -216,8 +209,7 @@ class TestDynamicGraphModification:
         with tempfile.TemporaryDirectory() as tmpdir:
             graph = AgentGraph(
                 name="update_test",
-                storage_backend="filesystem",
-                storage_path=tmpdir,
+                storage_backend=FilesystemBackend(base_dir=tmpdir),
             )
 
             await graph.add_node("agent", "Original prompt")
@@ -225,7 +217,7 @@ class TestDynamicGraphModification:
             assert node.system_prompt == "Original prompt"
 
             # Update prompt
-            await graph.update_node("agent", system_prompt="Updated prompt")
+            graph.update_node("agent", system_prompt="Updated prompt")
             node = graph.get_node("agent")
             assert node.system_prompt == "Updated prompt"
 
@@ -238,8 +230,7 @@ class TestTopologyConstraints:
         with tempfile.TemporaryDirectory() as tmpdir:
             graph = AgentGraph(
                 name="tree_test",
-                storage_backend="filesystem",
-                storage_path=tmpdir,
+                storage_backend=FilesystemBackend(base_dir=tmpdir),
                 topology_constraint="tree",
             )
 
@@ -256,8 +247,7 @@ class TestTopologyConstraints:
         with tempfile.TemporaryDirectory() as tmpdir:
             graph = AgentGraph(
                 name="dag_test",
-                storage_backend="filesystem",
-                storage_path=tmpdir,
+                storage_backend=FilesystemBackend(base_dir=tmpdir),
                 topology_constraint="dag",
             )
 
@@ -284,8 +274,7 @@ class TestCheckpointIntegration:
             # Create and save graph
             graph1 = AgentGraph(
                 name="checkpoint_test",
-                storage_backend="filesystem",
-                storage_path=tmpdir,
+                storage_backend=FilesystemBackend(base_dir=tmpdir),
             )
 
             await graph1.add_node("node1", "Prompt 1")
@@ -311,8 +300,7 @@ class TestCheckpointIntegration:
             # Create graph and send messages
             graph1 = AgentGraph(
                 name="msg_checkpoint_test",
-                storage_backend="filesystem",
-                storage_path=tmpdir,
+                storage_backend=FilesystemBackend(base_dir=tmpdir),
             )
 
             await graph1.add_node("alice", "Alice")
@@ -341,8 +329,7 @@ class TestErrorHandling:
         with tempfile.TemporaryDirectory() as tmpdir:
             graph = AgentGraph(
                 name="error_test",
-                storage_backend="filesystem",
-                storage_path=tmpdir,
+                storage_backend=FilesystemBackend(base_dir=tmpdir),
             )
 
             await graph.add_node("node1", "Node 1")
@@ -357,8 +344,7 @@ class TestErrorHandling:
         with tempfile.TemporaryDirectory() as tmpdir:
             graph = AgentGraph(
                 name="duplicate_test",
-                storage_backend="filesystem",
-                storage_path=tmpdir,
+                storage_backend=FilesystemBackend(base_dir=tmpdir),
             )
 
             await graph.add_node("node1", "Node 1")
@@ -374,8 +360,7 @@ class TestErrorHandling:
         with tempfile.TemporaryDirectory() as tmpdir:
             graph = AgentGraph(
                 name="nonexistent_test",
-                storage_backend="filesystem",
-                storage_path=tmpdir,
+                storage_backend=FilesystemBackend(base_dir=tmpdir),
             )
 
             with pytest.raises(NodeNotFoundError):
@@ -393,8 +378,7 @@ class TestConcurrency:
         with tempfile.TemporaryDirectory() as tmpdir:
             graph = AgentGraph(
                 name="concurrent_test",
-                storage_backend="filesystem",
-                storage_path=tmpdir,
+                storage_backend=FilesystemBackend(base_dir=tmpdir),
             )
 
             # Create star topology
@@ -423,8 +407,7 @@ class TestConcurrency:
         with tempfile.TemporaryDirectory() as tmpdir:
             graph = AgentGraph(
                 name="concurrent_add_test",
-                storage_backend="filesystem",
-                storage_path=tmpdir,
+                storage_backend=FilesystemBackend(base_dir=tmpdir),
             )
 
             # Add nodes concurrently
