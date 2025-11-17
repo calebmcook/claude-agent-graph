@@ -43,6 +43,29 @@ html_theme_options = {
     'site_url': 'https://calebmcook.github.io/claude-agent-graph/',
     'repo_url': 'https://github.com/calebmcook/claude-agent-graph',
     'repo_name': 'claude-agent-graph',
+    # Dark mode
+    'palette': [
+        {
+            'media': '(prefers-color-scheme: light)',
+            'scheme': 'default',
+            'primary': 'blue',
+            'accent': 'light-blue',
+            'toggle': {
+                'icon': 'material/brightness-7',
+                'name': 'Switch to dark mode',
+            }
+        },
+        {
+            'media': '(prefers-color-scheme: dark)',
+            'scheme': 'slate',
+            'primary': 'blue',
+            'accent': 'light-blue',
+            'toggle': {
+                'icon': 'material/brightness-4',
+                'name': 'Switch to light mode',
+            }
+        }
+    ],
 }
 
 # -- Extension configuration -------------------------------------------------
