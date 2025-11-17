@@ -519,26 +519,39 @@ await graph.add_edge("b", "a", directed=True)  # Raises TopologyViolationError (
 
 ## Testing
 
+The project uses a **hybrid three-tier testing strategy** for comprehensive coverage:
+
+### Quick Start
+
 ```bash
-# Run all tests
-pytest
+# Unit tests (fast, ~1-2s per test)
+pytest tests/test_flask_api.py -v
 
-# Run with coverage
-pytest --cov=src/claude_agent_graph --cov-report=html
+# With coverage
+pytest tests/test_flask_api.py --cov=app --cov-report=html
 
-# Run specific test file
-pytest tests/test_graph.py -v
-
-# Exclude failing checkpoint tests
-pytest -k "not checkpoint"
+# E2E browser tests (requires Flask server running)
+python3 app.py &                                      # Start server
+pytest tests/test_flask_e2e_playwright.py --headed   # See browser
 ```
+
+### Testing Strategy
+
+| Tier | Type | Speed | Purpose | Location |
+|------|------|-------|---------|----------|
+| 1 | Unit/Integration | <2s | Fast feedback, API contracts | `test_flask_api.py` |
+| 2 | E2E (Playwright) | 15-30s | Complete workflows, UI | `test_flask_e2e_playwright.py` |
+| 3 | Manual | Real-time | Exploration, real API | `python3 app.py` |
 
 ### Test Coverage
 
-- **412/418 tests passing** (98.5%)
-- **7,385 lines** of test code
-- **~85%** estimated coverage
-- 6 failing tests in Epic 7 (checkpoint persistence - known bugs)
+- **26 Flask API unit tests** - Endpoint validation, mocking, error handling
+- **40+ Playwright E2E tests** - Complete workflow scenarios
+- **500+ integration tests** - Core graph operations, messaging, persistence
+- **Pre-commit hooks** - Automated quality checks before commits
+- **CI/CD pipeline** - Automated testing on Python 3.10-3.12, Ubuntu/macOS
+
+**See [HYBRID_TESTING_STRATEGY.md](HYBRID_TESTING_STRATEGY.md) and [TESTING_SETUP.md](TESTING_SETUP.md) for complete testing documentation.**
 
 ---
 
