@@ -10,6 +10,7 @@ This module provides:
 
 import asyncio
 import json
+import sys
 from datetime import datetime
 from pathlib import Path
 from typing import Any, AsyncGenerator, Generator
@@ -18,12 +19,24 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from flask import Flask
 
-# Import the Flask app and manager
-import sys
+# Ensure project root is in Python path for importing app module
+_project_root = Path(__file__).parent.parent
+if str(_project_root) not in sys.path:
+    sys.path.insert(0, str(_project_root))
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
-from app import AgentCollaborationManager, app as flask_app
+try:
+    from app import AgentCollaborationManager, app as flask_app
+except ImportError as e:
+    # Fallback: try absolute import from current directory
+    import importlib.util
+    app_spec = importlib.util.spec_from_file_location("app", _project_root / "app.py")
+    if app_spec and app_spec.loader:
+        app_module = importlib.util.module_from_spec(app_spec)
+        app_spec.loader.exec_module(app_module)
+        flask_app = app_module.app
+        AgentCollaborationManager = app_module.AgentCollaborationManager
+    else:
+        raise ImportError(f"Could not import app module from {_project_root}") from e
 
 
 # ============================================================================
@@ -72,9 +85,12 @@ def manager():
     Returns:
         AgentCollaborationManager: Global manager instance
     """
-    # Import the app module to get the global manager
-    import app as app_module
-    return app_module.manager
+    # Get the manager from the app module that was imported at the top
+    app_module = sys.modules.get('app')
+    if app_module and hasattr(app_module, 'manager'):
+        return app_module.manager
+    # Fallback: raise error if not found
+    raise RuntimeError("AgentCollaborationManager not found in app module")
 
 
 # ============================================================================

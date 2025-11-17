@@ -18,30 +18,68 @@ pip install -r requirements-dev.txt
 ```
 
 ### Testing
+
+The project uses a **three-tier hybrid testing strategy**:
+
+#### Tier 1: Unit & Integration Tests (Fast - ~1-2s per test)
 ```bash
-# Run all tests
-pytest
+# Run Flask API unit tests
+pytest tests/test_flask_api.py -v
 
-# Run tests with coverage
-pytest --cov=src/claude_agent_graph --cov-report=html
+# Run with coverage
+pytest tests/test_flask_api.py --cov=app --cov-report=html
 
-# Run specific test file
-pytest tests/test_graph.py
-
-# Run specific test
-pytest tests/test_graph.py::test_add_node
+# Run all unit tests
+pytest tests/ -k "not e2e" -v
 ```
+
+#### Tier 2: End-to-End Tests (Playwright - ~15-30s per test)
+```bash
+# Install Playwright browsers (one-time)
+playwright install
+
+# Start Flask server
+python3 app.py &
+
+# Run E2E tests in headless mode
+pytest tests/test_flask_e2e_playwright.py -v
+
+# Run with visible browser
+pytest tests/test_flask_e2e_playwright.py --headed -v
+```
+
+#### Tier 3: Manual Testing (Real Claude API)
+```bash
+# Start Flask development server with hot reload
+FLASK_ENV=development python3 app.py
+
+# Open http://localhost:5001 in browser for interactive testing
+```
+
+**📖 See [HYBRID_TESTING_STRATEGY.md](HYBRID_TESTING_STRATEGY.md) and [TESTING_SETUP.md](TESTING_SETUP.md) for comprehensive testing guides.**
 
 ### Code Quality
 ```bash
 # Format code
-black src/ tests/
+black src/ tests/ app.py
 
 # Lint code
-ruff check src/ tests/
+ruff check src/ tests/ app.py
 
 # Type checking
-mypy src/
+mypy src/ --ignore-missing-imports
+```
+
+### Pre-commit Hooks
+```bash
+# Install pre-commit
+pip install pre-commit
+
+# Setup git hooks
+pre-commit install
+
+# Run hooks manually
+pre-commit run --all-files
 ```
 
 ## Architecture
