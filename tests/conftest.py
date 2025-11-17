@@ -65,14 +65,16 @@ def client(app: Flask):
 
 
 @pytest.fixture
-def manager() -> AgentCollaborationManager:
+def manager():
     """
-    Create a fresh AgentCollaborationManager for testing.
+    Get the global AgentCollaborationManager used by Flask app.
 
     Returns:
-        AgentCollaborationManager: Manager instance for testing
+        AgentCollaborationManager: Global manager instance
     """
-    return AgentCollaborationManager()
+    # Import the app module to get the global manager
+    import app as app_module
+    return app_module.manager
 
 
 # ============================================================================
@@ -204,9 +206,6 @@ def mock_claude_client(
             def __init__(self, content: str):
                 self.content = content
 
-            def __class_getitem__(cls, item):
-                return cls
-
         # Create mock message
         message = MessageMock(json.dumps(analysis_response))
         message.__class__.__name__ = "AssistantMessage"
@@ -214,9 +213,8 @@ def mock_claude_client(
 
     client = AsyncMock()
     client.query = AsyncMock()
-    client.receive_messages = AsyncMock(
-        return_value=async_generator_mock(mock_supervisor_analysis)
-    )
+    # Return the async generator directly instead of wrapping in AsyncMock
+    client.receive_messages = lambda: async_generator_mock(mock_supervisor_analysis)
 
     # Make the context manager work
     client.__aenter__ = AsyncMock(return_value=client)
@@ -244,9 +242,6 @@ def mock_agent_client(mock_agent_response: str) -> AsyncMock:
             def __init__(self, content: str):
                 self.content = content
 
-            def __class_getitem__(cls, item):
-                return cls
-
         # Create mock message
         message = MessageMock(response_text)
         message.__class__.__name__ = "AssistantMessage"
@@ -254,9 +249,8 @@ def mock_agent_client(mock_agent_response: str) -> AsyncMock:
 
     client = AsyncMock()
     client.query = AsyncMock()
-    client.receive_messages = AsyncMock(
-        return_value=async_generator_mock(mock_agent_response)
-    )
+    # Return the async generator directly instead of wrapping in AsyncMock
+    client.receive_messages = lambda: async_generator_mock(mock_agent_response)
 
     # Make the context manager work
     client.__aenter__ = AsyncMock(return_value=client)
@@ -353,9 +347,12 @@ def patch_claude_sdk(mock_claude_client: AsyncMock):
 
 
 @pytest.fixture
-def patch_agent_graph():
+def patch_agent_graph(manager: AgentCollaborationManager):
     """
-    Patch AgentGraph class for testing.
+    Patch AgentGraph class for testing and initialize manager's graph.
+
+    Args:
+        manager: AgentCollaborationManager instance
 
     Yields:
         MagicMock: Patched AgentGraph class
@@ -384,6 +381,8 @@ def patch_agent_graph():
         mock_instance._edges = {}
 
         mock.return_value = mock_instance
+        # Initialize the manager's graph with the mocked instance
+        manager.graph = mock_instance
         yield mock
 
 

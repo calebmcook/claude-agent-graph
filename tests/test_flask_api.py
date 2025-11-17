@@ -115,6 +115,7 @@ class TestSupervisorThinkEndpoint:
         supervisor_think_request_payload: dict[str, str],
         mock_supervisor_analysis: dict[str, Any],
         patch_claude_sdk,
+        patch_agent_graph,
     ):
         """
         Test successful supervisor analysis request.
@@ -124,6 +125,7 @@ class TestSupervisorThinkEndpoint:
             supervisor_think_request_payload: Sample request
             mock_supervisor_analysis: Mock analysis response
             patch_claude_sdk: Mocked ClaudeSDKClient
+            patch_agent_graph: Mocked AgentGraph
         """
         response = client.post(
             "/api/supervisor-think",
@@ -174,6 +176,7 @@ class TestSupervisorThinkEndpoint:
             content_type="application/json",
         )
 
+        assert response.status_code == 200
         data = json.loads(response.data)
         agents = data.get("agents", [])
 
@@ -191,6 +194,7 @@ class TestDelegateEndpoint:
         self,
         client: FlaskClient,
         delegate_request_payload: dict[str, str],
+        patch_claude_sdk,
         patch_agent_graph,
     ):
         """
@@ -199,6 +203,7 @@ class TestDelegateEndpoint:
         Args:
             client: Flask test client
             delegate_request_payload: Sample request
+            patch_claude_sdk: Mocked ClaudeSDKClient
             patch_agent_graph: Mocked AgentGraph
         """
         response = client.post(
@@ -235,6 +240,7 @@ class TestDelegateEndpoint:
         self,
         client: FlaskClient,
         delegate_request_payload: dict[str, str],
+        patch_claude_sdk,
         patch_agent_graph,
     ):
         """
@@ -243,6 +249,7 @@ class TestDelegateEndpoint:
         Args:
             client: Flask test client
             delegate_request_payload: Sample request
+            patch_claude_sdk: Mocked ClaudeSDKClient
             patch_agent_graph: Mocked AgentGraph
         """
         response = client.post(
@@ -251,6 +258,7 @@ class TestDelegateEndpoint:
             content_type="application/json",
         )
 
+        assert response.status_code == 200
         data = json.loads(response.data)
         delegations = data.get("delegations", [])
 
@@ -268,6 +276,7 @@ class TestAgentResponseEndpoint:
         client: FlaskClient,
         agent_response_request_payload: dict[str, str],
         patch_claude_sdk,
+        patch_agent_graph,
     ):
         """
         Test successful agent response request.
@@ -276,6 +285,7 @@ class TestAgentResponseEndpoint:
             client: Flask test client
             agent_response_request_payload: Sample request
             patch_claude_sdk: Mocked ClaudeSDKClient
+            patch_agent_graph: Mocked AgentGraph
         """
         response = client.post(
             "/api/agent-response",
@@ -324,6 +334,7 @@ class TestAgentResponseEndpoint:
         client: FlaskClient,
         agent_response_request_payload: dict[str, str],
         patch_claude_sdk,
+        patch_agent_graph,
     ):
         """
         Test that response includes valid ISO timestamp.
@@ -332,6 +343,7 @@ class TestAgentResponseEndpoint:
             client: Flask test client
             agent_response_request_payload: Sample request
             patch_claude_sdk: Mocked ClaudeSDKClient
+            patch_agent_graph: Mocked AgentGraph
         """
         response = client.post(
             "/api/agent-response",
@@ -339,6 +351,7 @@ class TestAgentResponseEndpoint:
             content_type="application/json",
         )
 
+        assert response.status_code == 200
         data = json.loads(response.data)
         timestamp = data.get("timestamp", "")
 
@@ -355,6 +368,7 @@ class TestSupervisorChatEndpoint:
         client: FlaskClient,
         supervisor_chat_request_payload: dict[str, str],
         patch_claude_sdk,
+        patch_agent_graph,
     ):
         """
         Test successful supervisor chat request.
@@ -363,6 +377,7 @@ class TestSupervisorChatEndpoint:
             client: Flask test client
             supervisor_chat_request_payload: Sample request
             patch_claude_sdk: Mocked ClaudeSDKClient
+            patch_agent_graph: Mocked AgentGraph
         """
         response = client.post(
             "/api/supervisor-chat",
@@ -410,6 +425,7 @@ class TestSupervisorChatEndpoint:
         self,
         client: FlaskClient,
         patch_claude_sdk,
+        patch_agent_graph,
     ):
         """
         Test that multiple chat messages maintain context.
@@ -417,6 +433,7 @@ class TestSupervisorChatEndpoint:
         Args:
             client: Flask test client
             patch_claude_sdk: Mocked ClaudeSDKClient
+            patch_agent_graph: Mocked AgentGraph
         """
         # Send first message
         response1 = client.post(
