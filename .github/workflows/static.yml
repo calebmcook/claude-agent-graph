@@ -1,12 +1,11 @@
-# Simple workflow for deploying static content to GitHub Pages
-name: Deploy static content to Pages
+# This workflow has been disabled in favor of docs.yml
+# The docs.yml workflow properly builds and deploys Sphinx documentation to GitHub Pages
+# See: .github/workflows/docs.yml
+
+name: Deploy static content to Pages [DISABLED]
 
 on:
-  # Runs on pushes targeting the default branch
-  push:
-    branches: ["main"]
-
-  # Allows you to run this workflow manually from the Actions tab
+  # DISABLED: Use docs.yml instead
   workflow_dispatch:
 
 # Sets permissions of the GITHUB_TOKEN to allow deployment to GitHub Pages
