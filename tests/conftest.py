@@ -21,22 +21,39 @@ from flask import Flask
 
 # Ensure project root is in Python path for importing app module
 _project_root = Path(__file__).parent.parent
+_app_path = _project_root / "app.py"
+
 if str(_project_root) not in sys.path:
     sys.path.insert(0, str(_project_root))
+
+# Debug: verify app.py exists
+if not _app_path.exists():
+    raise FileNotFoundError(
+        f"app.py not found at {_app_path.absolute()}. "
+        f"Project root: {_project_root.absolute()}"
+    )
 
 try:
     from app import AgentCollaborationManager, app as flask_app
 except ImportError as e:
-    # Fallback: try absolute import from current directory
+    # Fallback: try absolute import using importlib
     import importlib.util
-    app_spec = importlib.util.spec_from_file_location("app", _project_root / "app.py")
-    if app_spec and app_spec.loader:
-        app_module = importlib.util.module_from_spec(app_spec)
-        app_spec.loader.exec_module(app_module)
-        flask_app = app_module.app
-        AgentCollaborationManager = app_module.AgentCollaborationManager
-    else:
-        raise ImportError(f"Could not import app module from {_project_root}") from e
+    try:
+        app_spec = importlib.util.spec_from_file_location("app", str(_app_path))
+        if app_spec and app_spec.loader:
+            app_module = importlib.util.module_from_spec(app_spec)
+            sys.modules["app"] = app_module  # Register module before exec
+            app_spec.loader.exec_module(app_module)
+            flask_app = app_module.app
+            AgentCollaborationManager = app_module.AgentCollaborationManager
+        else:
+            raise ImportError(
+                f"Could not create spec for app module at {_app_path}"
+            ) from e
+    except Exception as import_error:
+        raise ImportError(
+            f"Failed to import app module from {_app_path.absolute()}: {import_error}"
+        ) from import_error
 
 
 # ============================================================================
