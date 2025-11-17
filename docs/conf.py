@@ -26,6 +26,7 @@ extensions = [
     'sphinx.ext.intersphinx',
     'sphinx.ext.todo',
     'sphinx.ext.coverage',
+    'sphinx_immaterial',
 ]
 
 templates_path = ['_templates']
@@ -34,8 +35,15 @@ exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
-html_theme = 'sphinx_rtd_theme'
+html_theme = 'sphinx_immaterial'
 html_static_path = ['_static']
+
+# Sphinx-Immaterial theme options
+html_theme_options = {
+    'site_url': 'https://calebmcook.github.io/claude-agent-graph/',
+    'repo_url': 'https://github.com/calebmcook/claude-agent-graph',
+    'repo_name': 'claude-agent-graph',
+}
 
 # -- Extension configuration -------------------------------------------------
 
@@ -66,7 +74,6 @@ autodoc_default_options = {
 # Intersphinx mapping
 intersphinx_mapping = {
     'python': ('https://docs.python.org/3', None),
-    'anthropic': ('https://docs.anthropic.com/en/api', None),
 }
 
 # Todo extension
