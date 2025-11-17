@@ -26,34 +26,41 @@ _app_path = _project_root / "app.py"
 if str(_project_root) not in sys.path:
     sys.path.insert(0, str(_project_root))
 
-# Debug: verify app.py exists
-if not _app_path.exists():
-    raise FileNotFoundError(
-        f"app.py not found at {_app_path.absolute()}. "
-        f"Project root: {_project_root.absolute()}"
-    )
+# Try multiple strategies to import app module
+flask_app = None
+AgentCollaborationManager = None
+_import_error = None
 
+# Strategy 1: Direct import (works when project is installed or in path)
 try:
     from app import AgentCollaborationManager, app as flask_app
-except ImportError as e:
-    # Fallback: try absolute import using importlib
-    import importlib.util
-    try:
-        app_spec = importlib.util.spec_from_file_location("app", str(_app_path))
-        if app_spec and app_spec.loader:
-            app_module = importlib.util.module_from_spec(app_spec)
-            sys.modules["app"] = app_module  # Register module before exec
-            app_spec.loader.exec_module(app_module)
-            flask_app = app_module.app
-            AgentCollaborationManager = app_module.AgentCollaborationManager
-        else:
-            raise ImportError(
-                f"Could not create spec for app module at {_app_path}"
-            ) from e
-    except Exception as import_error:
-        raise ImportError(
-            f"Failed to import app module from {_app_path.absolute()}: {import_error}"
-        ) from import_error
+except (ImportError, ModuleNotFoundError) as e:
+    _import_error = e
+
+    # Strategy 2: Try importlib with absolute path (for CI environments)
+    if _app_path.exists():
+        import importlib.util
+        try:
+            app_spec = importlib.util.spec_from_file_location("app", str(_app_path))
+            if app_spec and app_spec.loader:
+                app_module = importlib.util.module_from_spec(app_spec)
+                sys.modules["app"] = app_module
+                app_spec.loader.exec_module(app_module)
+                flask_app = getattr(app_module, "app", None)
+                AgentCollaborationManager = getattr(app_module, "AgentCollaborationManager", None)
+        except Exception as spec_error:
+            _import_error = spec_error
+
+# Provide detailed error if import failed
+if flask_app is None or AgentCollaborationManager is None:
+    _error_msg = (
+        f"Failed to import app module.\n"
+        f"Project root: {_project_root.absolute()}\n"
+        f"app.py path: {_app_path.absolute()}\n"
+        f"app.py exists: {_app_path.exists()}\n"
+        f"Error: {_import_error}"
+    )
+    raise RuntimeError(_error_msg) from _import_error
 
 
 # ============================================================================
