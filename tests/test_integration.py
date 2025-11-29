@@ -281,10 +281,10 @@ class TestCheckpointIntegration:
             await graph1.add_node("node2", "Prompt 2")
             await graph1.add_edge("node1", "node2", directed=True)
 
-            await graph1.save_checkpoint(str(checkpoint_path))
+            graph1.save_checkpoint(str(checkpoint_path))
 
             # Load into new graph
-            graph2 = await AgentGraph.load_checkpoint(str(checkpoint_path))
+            graph2 = AgentGraph.load_checkpoint(str(checkpoint_path))
 
             assert graph2.name == "checkpoint_test"
             assert graph2.node_count == 2
@@ -310,10 +310,10 @@ class TestCheckpointIntegration:
             await graph1.send_message("alice", "bob", "Hello")
             await graph1.send_message("bob", "alice", "Hi there")
 
-            await graph1.save_checkpoint(str(checkpoint_path))
+            graph1.save_checkpoint(str(checkpoint_path))
 
             # Load and verify messages
-            graph2 = await AgentGraph.load_checkpoint(str(checkpoint_path))
+            graph2 = AgentGraph.load_checkpoint(str(checkpoint_path))
             messages = await graph2.get_conversation("alice", "bob")
 
             assert len(messages) == 2

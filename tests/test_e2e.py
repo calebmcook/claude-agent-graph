@@ -247,10 +247,10 @@ class TestPersistenceAndRecovery:
             await graph1.send_message("alice", "bob", "Message 1")
             await graph1.send_message("bob", "alice", "Message 2")
 
-            await graph1.save_checkpoint(str(checkpoint_path))
+            graph1.save_checkpoint(str(checkpoint_path))
 
             # Phase 2: Load and continue
-            graph2 = await AgentGraph.load_checkpoint(str(checkpoint_path))
+            graph2 = AgentGraph.load_checkpoint(str(checkpoint_path))
 
             # Verify loaded state
             assert graph2.name == "persistence_test"
@@ -299,7 +299,7 @@ class TestPersistenceAndRecovery:
             await asyncio.sleep(2)
 
             # Stop auto-save
-            await graph1.stop_auto_save()
+            graph1.stop_auto_save()
 
             # Simulate crash by discarding graph1
             # (In real crash, graph1 would be lost)

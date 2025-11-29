@@ -25,16 +25,11 @@ from .exceptions import (
     DuplicateNodeError,
     EdgeNotFoundError,
     NodeNotFoundError,
+    TopologyViolationError,
 )
 from .models import CachedMetric, Edge, GraphMetrics, Message, Node
 
 logger = logging.getLogger(__name__)
-
-
-class TopologyViolationError(AgentGraphError):
-    """Raised when a graph operation violates topology constraints."""
-
-    pass
 
 
 class AgentGraph:
