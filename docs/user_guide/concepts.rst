@@ -24,6 +24,7 @@ Creating a Node
         node_id="analyst",
         system_prompt="You are a data analyst specializing in financial metrics.",
         model="claude-sonnet-4-20250514",
+        max_tokens=500,  # Optional: limit response length for cost control
         metadata={"department": "finance", "role": "senior"}
     )
 
@@ -33,6 +34,30 @@ The node becomes an active Claude agent that can:
 * Execute tools and commands
 * Respond to messages
 * Collaborate with other agents
+* Respect output token constraints (if configured)
+
+Node Configuration Options
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+* **node_id**: Unique identifier for the node
+* **system_prompt**: Instructions that define agent behavior
+* **model**: Claude model to use (default: ``claude-sonnet-4-20250514``)
+* **max_tokens** (optional): Maximum output tokens to enforce via ``CLAUDE_CODE_MAX_OUTPUT_TOKENS`` environment variable
+* **metadata**: Custom attributes for your application
+
+The ``max_tokens`` parameter enables cost control and response length constraints:
+
+.. code-block:: python
+
+    # Unlimited tokens (default)
+    await graph.add_node("coordinator", "You coordinate tasks.")
+
+    # Limited to 200 tokens for cost control
+    await graph.add_node("worker", "You execute tasks.", max_tokens=200)
+
+    # Query configured limits
+    node = graph.get_node("worker")
+    print(f"Max tokens: {node.max_tokens}")
 
 Edge (Connection)
 -----------------
@@ -74,12 +99,44 @@ Directed vs Undirected
 * Target node's system prompt is automatically modified to include controller info
 * Enables ``execute_command()`` for control commands
 * Models organizational hierarchies, workflows
+* **Worker responses automatically route back** to the supervisor via the same conversation channel
 
 **Undirected edges** create peer relationships:
 
 * Both nodes can communicate freely
 * No control authority
 * Models collaborative networks, mesh topologies
+* Messages flow in both directions equally
+
+Response Routing in Directed Edges
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+When using directed edges, worker responses are automatically routed back to the supervisor:
+
+.. code-block:: python
+
+    # Create a directed edge (supervisor → worker)
+    await graph.add_edge("supervisor", "worker", directed=True)
+
+    # Send message from supervisor to worker
+    await graph.send_message("supervisor", "worker", "Analyze the data")
+
+    # Process the message (manually or via executor)
+    executor = ManualController(graph)
+    await executor.step("worker")
+
+    # Worker's response automatically appears in the conversation
+    messages = await graph.get_conversation("supervisor", "worker")
+    # Output:
+    # supervisor → worker: Analyze the data
+    # worker → supervisor: Analysis complete. Key insights...
+
+This automatic response routing:
+
+* Preserves the supervisory hierarchy (no bidirectional edge needed)
+* Stores both request and response in the same conversation thread
+* Allows supervisors to see worker output in supervisory context
+* Simplifies hierarchical workflows and delegation patterns
 
 Conversation Files
 ------------------

@@ -12,29 +12,68 @@ Features
 - 🕸️ **Flexible Graph Topologies**: Support for trees, DAGs, meshes, chains, stars, and cycles
 - 🤖 **Independent Agent Sessions**: Each node is a full Claude agent via claude-agent-sdk
 - 💬 **Shared Conversation State**: Persistent JSONL conversation files between agents
-- 🎯 **Control Relationships**: Hierarchical authority via directed edges
+- 🎯 **Control Relationships**: Hierarchical authority via directed edges with automatic response routing
 - ⚡ **Multiple Execution Modes**: Manual, reactive, and proactive orchestration
 - 🔄 **Dynamic Operations**: Runtime graph modification with rollback support
 - 💾 **Persistence & Recovery**: Checkpointing and crash recovery
 - 🔌 **Pluggable Storage**: Filesystem, database, or custom backends
+- 🎛️ **Per-Node Configuration**: Max tokens for cost/response control
+- ✨ **Graceful Shutdown**: Clean agent termination with proper error handling
 
 Quick Start
 -----------
 
 .. code-block:: python
 
+    import asyncio
     from claude_agent_graph import AgentGraph
+    from claude_agent_graph.backends import FilesystemBackend
+    from claude_agent_graph.execution import ManualController
 
-    async with AgentGraph(name="my_network") as graph:
-        # Add agents
-        await graph.add_node("agent1", "You are a coordinator.")
-        await graph.add_node("agent2", "You are a worker.")
+    async def main():
+        async with AgentGraph(
+            name="my_network",
+            storage_backend=FilesystemBackend(base_dir="./conversations")
+        ) as graph:
+            # Add agents with optional max_tokens configuration
+            await graph.add_node(
+                "coordinator",
+                "You coordinate tasks and delegate to workers.",
+                model="claude-sonnet-4-20250514"
+            )
+            await graph.add_node(
+                "worker",
+                "You execute tasks assigned to you.",
+                model="claude-sonnet-4-20250514",
+                max_tokens=200  # Limit responses to 200 tokens for cost control
+            )
 
-        # Connect them
-        await graph.add_edge("agent1", "agent2", directed=True)
+            # Create directed edge (supervisor → worker)
+            # Worker responses automatically route back to supervisor
+            await graph.add_edge("coordinator", "worker", directed=True)
 
-        # Send a message
-        await graph.send_message("agent1", "agent2", "Process this task")
+            # Create executor and step through agents
+            executor = ManualController(graph)
+            await executor.start()
+
+            # Send message
+            await graph.send_message(
+                "coordinator",
+                "worker",
+                "Please analyze the data and provide a summary."
+            )
+
+            # Step the worker to process the message
+            await executor.step("worker")
+
+            # Get conversation (includes both request and response)
+            messages = await graph.get_conversation("coordinator", "worker")
+            for msg in messages:
+                print(f"{msg.from_node} → {msg.to_node}: {msg.content[:100]}...")
+
+            await executor.stop()
+
+    asyncio.run(main())
 
 Installation
 ------------
