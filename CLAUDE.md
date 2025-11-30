@@ -6,6 +6,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **claude-agent-graph** is a Python package that enables creation and orchestration of large-scale graphs where each node represents an independent Claude agent session. The system leverages the claude-agent-sdk to create complex, interconnected networks of AI agents that collaborate and maintain shared state through structured conversation channels.
 
+### Recent Enhancements (v0.1.0)
+
+- ✅ **Agent Response Routing** - Worker responses automatically route back to supervisors via directed edges
+- ✅ **Per-Node Max Tokens** - Configure `CLAUDE_CODE_MAX_OUTPUT_TOKENS` per agent for cost control
+- ✅ **Graceful Shutdown** - Fixed SDK cancel scope issues, proper cleanup with timeout protection
+- ✅ **Message Queuing** - Automatic queue-based message processing for all execution modes
+
 ## Development Commands
 
 ### Setup
@@ -226,43 +233,71 @@ docs/
 
 ## Common Patterns
 
-### Creating a Graph
+### Creating a Graph with Max Tokens Configuration
+
 ```python
 from claude_agent_graph import AgentGraph
+from claude_agent_graph.backends import FilesystemBackend
+from claude_agent_graph.execution import ManualController
 
 graph = AgentGraph(
     name="my_network",
-    storage_backend="filesystem",
+    storage_backend=FilesystemBackend(base_dir="./conversations"),
     max_nodes=1000
 )
 
-# Add nodes
+# Add supervisor with unlimited tokens
 supervisor = await graph.add_node(
     node_id="supervisor",
     system_prompt="You coordinate worker agents.",
     model="claude-sonnet-4-20250514"
+    # No max_tokens = unlimited
 )
 
+# Add worker with constrained tokens (cost/brevity control)
 worker = await graph.add_node(
     node_id="worker_1",
     system_prompt="You execute tasks.",
-    model="claude-sonnet-4-20250514"
+    model="claude-sonnet-4-20250514",
+    max_tokens=200  # Limit responses to 200 tokens for cost control
 )
 
 # Add directed edge (supervisor -> worker)
+# Worker responses automatically route back to supervisor
 await graph.add_edge(
     from_node="supervisor",
     to_node="worker_1",
     directed=True
 )
 
+# Create executor for manual stepping
+executor = ManualController(graph)
+await executor.start()
+
 # Send message
 await graph.send_message(
     from_node="supervisor",
     to_node="worker_1",
-    content="Analyze the data"
+    content="Analyze the data and provide summary"
 )
+
+# Step the worker to process the message
+await executor.step("worker_1")
+
+# Supervisor sees the worker's response in the conversation
+messages = await graph.get_conversation("supervisor", "worker_1")
+for msg in messages:
+    print(f"{msg.from_node} → {msg.to_node}: {msg.content[:100]}...")
+
+await executor.stop()
 ```
+
+**Key Features Demonstrated:**
+- `max_tokens` configuration for cost/response control
+- Directed edges create supervisory relationships
+- Worker responses automatically route back to supervisor
+- Manual execution control with `ManualController`
+- Conversation persistence in JSONL format
 
 ### Message Structure
 All inter-agent messages follow this format in conversation files:

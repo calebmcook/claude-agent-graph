@@ -145,6 +145,11 @@ class Node(BaseModel):
         default="claude-sonnet-4-20250514",
         description="Claude model to use for this agent",
     )
+    max_tokens: int | None = Field(
+        default=None,
+        description="Maximum tokens for responses from this agent (optional)",
+        ge=1,
+    )
     status: NodeStatus = Field(
         default=NodeStatus.INITIALIZING,
         description="Current status of the agent",

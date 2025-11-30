@@ -27,7 +27,7 @@ from .exceptions import (
     NodeNotFoundError,
     TopologyViolationError,
 )
-from .models import CachedMetric, Edge, GraphMetrics, Message, Node
+from .models import CachedMetric, Edge, GraphMetrics, Message, Node, NodeStatus
 
 logger = logging.getLogger(__name__)
 
@@ -139,6 +139,7 @@ class AgentGraph:
         node_id: str,
         system_prompt: str,
         model: str = "claude-sonnet-4-20250514",
+        max_tokens: int | None = None,
         **metadata: Any,
     ) -> Node:
         """
@@ -148,6 +149,7 @@ class AgentGraph:
             node_id: Unique identifier for the node
             system_prompt: System prompt for the agent
             model: Claude model to use
+            max_tokens: Maximum tokens for responses from this agent (optional)
             **metadata: Additional metadata for the node
 
         Returns:
@@ -178,6 +180,7 @@ class AgentGraph:
                     node_id=node_id,
                     system_prompt=system_prompt,
                     model=model,
+                    max_tokens=max_tokens,
                     metadata=metadata,
                 )
             except ValueError as e:
@@ -189,7 +192,7 @@ class AgentGraph:
 
             logger.info(
                 f"Added node '{node_id}' to graph '{self.name}' "
-                f"[model={model}, nodes_total={len(self._nodes)}]"
+                f"[model={model}, max_tokens={max_tokens}, nodes_total={len(self._nodes)}]"
             )
             return node
 
@@ -977,6 +980,11 @@ Follow directives from your controllers while maintaining your specialized role.
         # Append message to storage backend
         await self.storage.append_message(edge_id, message)
 
+        # Queue message for receiving node (for execution modes)
+        if to_node not in self._message_queues:
+            self._message_queues[to_node] = asyncio.Queue()
+        await self._message_queues[to_node].put(message)
+
         logger.info(
             f"Message {message.message_id} sent from '{from_node}' to '{to_node}' "
             f"[content_length={len(content)}, role={message.role.value}]"
@@ -1239,6 +1247,143 @@ Follow directives from your controllers while maintaining your specialized role.
             f"path={path}, hops={len(path) - 1}"
         )
         return messages
+
+    async def _process_message_with_agent(
+        self,
+        node_id: str,
+        message: Message,
+    ) -> str | None:
+        """
+        Process a message by sending it to an agent and getting its response.
+
+        This is the critical bridge between message queues and agent execution.
+        Takes a message from the queue, sends it to the agent's session, and
+        returns the agent's response.
+
+        Args:
+            node_id: ID of the agent to process the message
+            message: The Message object to send to the agent
+
+        Returns:
+            The agent's response text, or None if processing fails
+
+        Raises:
+            NodeNotFoundError: If node doesn't exist
+            AgentGraphError: If agent session fails
+        """
+        if node_id not in self._nodes:
+            raise NodeNotFoundError(f"Node '{node_id}' not found")
+
+        node = self._nodes[node_id]
+
+        try:
+            # Ensure agent session is active
+            session = self._agent_manager._sessions.get(node_id)
+            if session is None:
+                logger.warning(f"Agent session for '{node_id}' not active")
+                return None
+
+            # Build the message content to send to the agent
+            # Include context about the sender and any metadata
+            full_content = message.content
+            if message.metadata.get("type") == "command":
+                # For commands, include command name and params in context
+                command_name = message.metadata.get("command", "unknown")
+                params = message.metadata.get("params", {})
+                full_content = f"[COMMAND: {command_name}] {message.content}\nParameters: {params}"
+
+            # Send message to agent and get response
+            # Using the ClaudeSDKClient query and receive_response pattern
+            # Note: max_tokens is stored on the node and could be used by the agent's
+            # system prompt or other implementations, but is not directly passed to query()
+            await session.query(full_content)
+
+            # Collect the response from the agent
+            response_text = ""
+            async for response_msg in session.receive_response():
+                # Handle different message types from the response
+                if hasattr(response_msg, 'content'):
+                    # AssistantMessage has content attribute (which is a list of content blocks)
+                    content = response_msg.content
+                    if isinstance(content, list):
+                        # Content is a list of blocks - extract text from each
+                        for block in content:
+                            if hasattr(block, 'text'):
+                                response_text += block.text
+                    else:
+                        # Content is a string
+                        response_text += str(content)
+                elif hasattr(response_msg, 'text'):
+                    # TextBlock has text attribute
+                    response_text += response_msg.text
+
+            logger.debug(
+                f"Agent '{node_id}' processed message {message.message_id} "
+                f"from '{message.from_node}': received {len(response_text)} char response"
+            )
+
+            response = response_text
+
+            # Store the agent's response back through the graph
+            # Create a return message from the responding agent to the original sender
+            if response and message.from_node:
+                try:
+                    # Check if there's a direct edge back to the sender
+                    try:
+                        await self.send_message(
+                            from_node=node_id,
+                            to_node=message.from_node,
+                            content=response,
+                            metadata={"response_to": message.message_id}
+                        )
+                    except EdgeNotFoundError:
+                        # If no direct edge back, check if original edge was directed
+                        # In that case, append response to the original directed edge conversation
+                        # This allows supervisors to see worker responses in the same conversation thread
+                        logger.debug(
+                            f"No direct edge from '{node_id}' to '{message.from_node}'. "
+                            f"Checking if original edge is directed..."
+                        )
+
+                        # Find the edge that the original message came through
+                        original_edge_id = None
+                        for eid, edge in self._edges.items():
+                            if (edge.from_node == message.from_node and edge.to_node == node_id
+                                and edge.directed):
+                                original_edge_id = eid
+                                break
+
+                        if original_edge_id:
+                            # Store response in the original directed edge conversation
+                            response_msg = Message(
+                                from_node=node_id,
+                                to_node=message.from_node,
+                                content=response,
+                                metadata={"response_to": message.message_id}
+                            )
+                            await self.storage.append_message(original_edge_id, response_msg)
+                            logger.info(
+                                f"Response from '{node_id}' appended to directed edge "
+                                f"'{original_edge_id}' for supervisor visibility"
+                            )
+                        else:
+                            logger.warning(
+                                f"Could not send response from '{node_id}' to '{message.from_node}': "
+                                f"No edge found (neither direct nor original)"
+                            )
+                except Exception as e:
+                    logger.warning(f"Failed to send response back to '{message.from_node}': {e}")
+
+            return response
+
+        except Exception as e:
+            logger.error(
+                f"Failed to process message {message.message_id} "
+                f"with agent '{node_id}': {e}"
+            )
+            node.status = NodeStatus.ERROR
+            node.metadata["last_error"] = str(e)
+            return None
 
     # ==================== Async Context Manager (Epic 4) ====================
 
