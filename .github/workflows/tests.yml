@@ -173,9 +173,9 @@ jobs:
 
             | Check | Status |
             |-------|--------|
-            | Unit Tests | ${{ needs.unit-tests.result === 'success' && '✅ Passed' || '❌ Failed' }} |
-            | Integration Tests | ${{ needs.integration-tests.result === 'success' && '✅ Passed' || '❌ Failed' }} |
-            | Code Quality | ${{ needs.code-quality.result === 'success' && '✅ Passed' || '❌ Failed' }} |
+            | Unit Tests | ${{ needs.unit-tests.result == 'success' && '✅ Passed' || '❌ Failed' }} |
+            | Integration Tests | ${{ needs.integration-tests.result == 'success' && '✅ Passed' || '❌ Failed' }} |
+            | Code Quality | ${{ needs.code-quality.result == 'success' && '✅ Passed' || '❌ Failed' }} |
             `;
 
             console.log(summary);
