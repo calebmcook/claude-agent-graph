@@ -20,8 +20,9 @@ Requirements:
 """
 
 import asyncio
+
 from claude_agent_graph import AgentGraph
-from claude_agent_graph.execution import ManualController, ReactiveExecutor
+from claude_agent_graph.execution import ManualController
 
 
 async def main():
@@ -33,7 +34,6 @@ async def main():
 
     # Create a simple chain graph for demo
     async with AgentGraph(name="execution_demo") as graph:
-
         # ==========================================
         # SETUP: Create Simple Chain
         # ==========================================

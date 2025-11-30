@@ -8,7 +8,8 @@ This module defines the core data structures:
 - SharedState: Conversation state for edges
 """
 
-from dataclasses import dataclass, field as dataclass_field
+from dataclasses import dataclass
+from dataclasses import field as dataclass_field
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any
@@ -310,9 +311,7 @@ class CachedMetric:
     """
 
     value: Any
-    timestamp: datetime = dataclass_field(
-        default_factory=lambda: datetime.now(timezone.utc)
-    )
+    timestamp: datetime = dataclass_field(default_factory=lambda: datetime.now(timezone.utc))
     ttl_seconds: int = 300  # Default TTL: 5 minutes
 
     def is_valid(self) -> bool:
@@ -365,9 +364,7 @@ class GraphMetrics:
     Computed from failed operations in time window.
     """
 
-    timestamp: datetime = dataclass_field(
-        default_factory=lambda: datetime.now(timezone.utc)
-    )
+    timestamp: datetime = dataclass_field(default_factory=lambda: datetime.now(timezone.utc))
     """UTC timestamp when metrics were computed."""
 
     def to_dict(self) -> dict[str, Any]:

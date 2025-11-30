@@ -13,9 +13,12 @@ import json
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any
 
 from .models import Edge, Node
+
+if TYPE_CHECKING:
+    from .graph import AgentGraph
 
 logger = logging.getLogger(__name__)
 
@@ -28,7 +31,7 @@ class VisualizationError(Exception):
 
 def export_graphviz(
     graph: "AgentGraph",  # type: ignore
-    output_path: Optional[Path | str] = None,
+    output_path: Path | str | None = None,
     include_metadata: bool = True,
     include_message_counts: bool = False,
     node_style: str = "default",
@@ -57,24 +60,20 @@ def export_graphviz(
     try:
         lines: list[str] = []
         lines.append("digraph {")
-        lines.append('    rankdir=LR;')
-        lines.append('    node [shape=box, style=filled, fillcolor=lightblue];')
+        lines.append("    rankdir=LR;")
+        lines.append("    node [shape=box, style=filled, fillcolor=lightblue];")
 
         # Add nodes
         for node in graph.get_nodes():
             node_label = _format_node_label(node, include_metadata)
             node_color = _get_node_color(node, node_style)
-            lines.append(
-                f'    "{node.node_id}" [label="{node_label}", fillcolor="{node_color}"];'
-            )
+            lines.append(f'    "{node.node_id}" [label="{node_label}", fillcolor="{node_color}"];')
 
         # Add edges
         for edge in graph._edges.values():
             edge_label = _format_edge_label(edge, include_message_counts)
             if edge_label:
-                lines.append(
-                    f'    "{edge.from_node}" -> "{edge.to_node}" [label="{edge_label}"];'
-                )
+                lines.append(f'    "{edge.from_node}" -> "{edge.to_node}" [label="{edge_label}"];')
             else:
                 lines.append(f'    "{edge.from_node}" -> "{edge.to_node}";')
 
@@ -98,7 +97,7 @@ def export_graphviz(
 
 def export_json(
     graph: "AgentGraph",  # type: ignore
-    output_path: Optional[Path | str] = None,
+    output_path: Path | str | None = None,
     format_type: str = "node-link",
     include_metadata: bool = True,
     include_message_counts: bool = False,
@@ -124,15 +123,11 @@ def export_json(
     """
     try:
         if format_type == "node-link":
-            data = _export_json_node_link(
-                graph, include_metadata, include_message_counts
-            )
+            data = _export_json_node_link(graph, include_metadata, include_message_counts)
         elif format_type == "adjacency":
             data = _export_json_adjacency(graph, include_metadata)
         else:
-            raise ValueError(
-                f"Unknown format: {format_type}. Use 'node-link' or 'adjacency'."
-            )
+            raise ValueError(f"Unknown format: {format_type}. Use 'node-link' or 'adjacency'.")
 
         # Write to file if path provided
         if output_path:

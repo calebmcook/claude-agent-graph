@@ -5,66 +5,67 @@
 
 import os
 import sys
-sys.path.insert(0, os.path.abspath('../src'))
+
+sys.path.insert(0, os.path.abspath("../src"))
 
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
-project = 'claude-agent-graph'
-copyright = '2025, Implementation Team'
-author = 'Implementation Team'
-release = '0.1.0-alpha'
-version = '0.1.0'
+project = "claude-agent-graph"
+copyright = "2025, Implementation Team"
+author = "Implementation Team"
+release = "0.1.0-alpha"
+version = "0.1.0"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
 
 extensions = [
-    'sphinx.ext.autodoc',
-    'sphinx.ext.napoleon',
-    'sphinx.ext.viewcode',
-    'sphinx.ext.intersphinx',
-    'sphinx.ext.todo',
-    'sphinx.ext.coverage',
-    'sphinx_immaterial',
+    "sphinx.ext.autodoc",
+    "sphinx.ext.napoleon",
+    "sphinx.ext.viewcode",
+    "sphinx.ext.intersphinx",
+    "sphinx.ext.todo",
+    "sphinx.ext.coverage",
+    "sphinx_immaterial",
 ]
 
-templates_path = ['_templates']
-exclude_patterns = ['_build', 'Thumbs.db', '.DS_Store']
+templates_path = ["_templates"]
+exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
-html_theme = 'sphinx_immaterial'
-html_static_path = ['_static']
+html_theme = "sphinx_immaterial"
+html_static_path = ["_static"]
 
 # Sphinx-Immaterial theme options
 html_theme_options = {
-    'site_url': 'https://calebmcook.github.io/claude-agent-graph/',
-    'repo_url': 'https://github.com/calebmcook/claude-agent-graph',
-    'repo_name': 'claude-agent-graph',
+    "site_url": "https://calebmcook.github.io/claude-agent-graph/",
+    "repo_url": "https://github.com/calebmcook/claude-agent-graph",
+    "repo_name": "claude-agent-graph",
     # Dark mode
-    'palette': [
+    "palette": [
         {
-            'media': '(prefers-color-scheme: light)',
-            'scheme': 'default',
-            'primary': 'blue',
-            'accent': 'light-blue',
-            'toggle': {
-                'icon': 'material/brightness-7',
-                'name': 'Switch to dark mode',
-            }
+            "media": "(prefers-color-scheme: light)",
+            "scheme": "default",
+            "primary": "blue",
+            "accent": "light-blue",
+            "toggle": {
+                "icon": "material/brightness-7",
+                "name": "Switch to dark mode",
+            },
         },
         {
-            'media': '(prefers-color-scheme: dark)',
-            'scheme': 'slate',
-            'primary': 'blue',
-            'accent': 'light-blue',
-            'toggle': {
-                'icon': 'material/brightness-4',
-                'name': 'Switch to light mode',
-            }
-        }
+            "media": "(prefers-color-scheme: dark)",
+            "scheme": "slate",
+            "primary": "blue",
+            "accent": "light-blue",
+            "toggle": {
+                "icon": "material/brightness-4",
+                "name": "Switch to light mode",
+            },
+        },
     ],
 }
 
@@ -87,16 +88,16 @@ napoleon_attr_annotations = True
 
 # Autodoc settings
 autodoc_default_options = {
-    'members': True,
-    'member-order': 'bysource',
-    'special-members': '__init__',
-    'undoc-members': True,
-    'exclude-members': '__weakref__'
+    "members": True,
+    "member-order": "bysource",
+    "special-members": "__init__",
+    "undoc-members": True,
+    "exclude-members": "__weakref__",
 }
 
 # Intersphinx mapping
 intersphinx_mapping = {
-    'python': ('https://docs.python.org/3', None),
+    "python": ("https://docs.python.org/3", None),
 }
 
 # Todo extension

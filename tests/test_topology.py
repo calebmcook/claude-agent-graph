@@ -4,7 +4,6 @@ Tests for topology detection and validation utilities.
 
 import networkx as nx
 import pytest
-
 from claude_agent_graph.topology import (
     GraphTopology,
     detect_topology,

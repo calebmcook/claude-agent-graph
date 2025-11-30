@@ -13,7 +13,6 @@ import tempfile
 from pathlib import Path
 
 import pytest
-
 from claude_agent_graph import (
     AgentGraph,
     Checkpoint,

@@ -8,7 +8,6 @@ from pathlib import Path
 
 import aiofiles
 import pytest
-
 from claude_agent_graph.models import Message, MessageRole
 from claude_agent_graph.storage import ConversationFile
 

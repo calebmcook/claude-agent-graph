@@ -11,9 +11,9 @@ This module provides:
 import asyncio
 import json
 import sys
-from datetime import datetime
+from collections.abc import Generator
 from pathlib import Path
-from typing import Any, AsyncGenerator, Generator
+from typing import Any
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -33,13 +33,15 @@ _import_error = None
 
 # Strategy 1: Direct import (works when project is installed or in path)
 try:
-    from app import AgentCollaborationManager, app as flask_app
+    from app import AgentCollaborationManager
+    from app import app as flask_app
 except (ImportError, ModuleNotFoundError) as e:
     _import_error = e
 
     # Strategy 2: Try importlib with absolute path (for CI environments)
     if _app_path.exists():
         import importlib.util
+
         try:
             app_spec = importlib.util.spec_from_file_location("app", str(_app_path))
             if app_spec and app_spec.loader:
@@ -110,8 +112,8 @@ def manager():
         AgentCollaborationManager: Global manager instance
     """
     # Get the manager from the app module that was imported at the top
-    app_module = sys.modules.get('app')
-    if app_module and hasattr(app_module, 'manager'):
+    app_module = sys.modules.get("app")
+    if app_module and hasattr(app_module, "manager"):
         return app_module.manager
     # Fallback: raise error if not found
     raise RuntimeError("AgentCollaborationManager not found in app module")
@@ -312,9 +314,7 @@ def initialize_request_payload() -> dict[str, str]:
     Returns:
         dict: Request payload for /api/initialize endpoint
     """
-    return {
-        "problem": "How should we approach building a scalable web application?"
-    }
+    return {"problem": "How should we approach building a scalable web application?"}
 
 
 @pytest.fixture
@@ -325,9 +325,7 @@ def supervisor_think_request_payload() -> dict[str, str]:
     Returns:
         dict: Request payload for /api/supervisor-think endpoint
     """
-    return {
-        "problem": "What is the best approach to system architecture design?"
-    }
+    return {"problem": "What is the best approach to system architecture design?"}
 
 
 @pytest.fixture

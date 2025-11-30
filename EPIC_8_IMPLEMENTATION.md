@@ -734,4 +734,3 @@ The following features are explicitly out of scope for Epic 8:
 **Last Updated:** November 2025
 
 **Author:** Implementation Team
-

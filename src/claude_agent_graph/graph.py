@@ -11,7 +11,7 @@ import logging
 from collections import defaultdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import networkx as nx
 
@@ -57,7 +57,7 @@ class AgentGraph:
         storage_backend: StorageBackend | None = None,
         auto_save: bool = True,
         auto_save_interval: int = 300,
-        checkpoint_dir: Optional[Path | str] = None,
+        checkpoint_dir: Path | str | None = None,
     ):
         """
         Initialize an AgentGraph.
@@ -90,7 +90,7 @@ class AgentGraph:
             self.checkpoint_dir = Path(f"./checkpoints/{name}")
         else:
             self.checkpoint_dir = Path(checkpoint_dir)
-        self._auto_save_task: Optional[asyncio.Task] = None
+        self._auto_save_task: asyncio.Task | None = None
 
         # Internal data structures
         self._nodes: dict[str, Node] = {}
@@ -111,9 +111,11 @@ class AgentGraph:
         self._execution_mode = None
 
         # Metrics cache (Epic 8)
-        self._metrics_cache: Optional[CachedMetric] = None
+        self._metrics_cache: CachedMetric | None = None
 
-        logger.debug(f"Created AgentGraph '{name}' with storage backend {type(self.storage).__name__}")
+        logger.debug(
+            f"Created AgentGraph '{name}' with storage backend {type(self.storage).__name__}"
+        )
 
     def __repr__(self) -> str:
         """Return string representation of the graph."""
@@ -184,7 +186,7 @@ class AgentGraph:
                     metadata=metadata,
                 )
             except ValueError as e:
-                raise ValueError(f"Node validation failed: {e}")
+                raise ValueError(f"Node validation failed: {e}") from e
 
             # Store node
             self._nodes[node_id] = node
@@ -299,7 +301,7 @@ class AgentGraph:
                     properties=properties,
                 )
             except ValueError as e:
-                raise ValueError(f"Edge validation failed: {e}")
+                raise ValueError(f"Edge validation failed: {e}") from e
 
             # Store edge
             self._edges[edge_id] = edge
@@ -703,8 +705,7 @@ class AgentGraph:
 
         # Build controller list
         controller_lines = "\n".join(
-            f"  - Agent '{ctrl_id}' ({ctrl_type})"
-            for ctrl_id, ctrl_type in sorted(controllers)
+            f"  - Agent '{ctrl_id}' ({ctrl_type})" for ctrl_id, ctrl_type in sorted(controllers)
         )
 
         # Inject control information
@@ -1193,10 +1194,10 @@ Follow directives from your controllers while maintaining your specialized role.
             # Auto-find shortest path
             try:
                 path = nx.shortest_path(self._nx_graph, from_node, to_node)
-            except (nx.NetworkXNoPath, nx.NodeNotFound):
+            except (nx.NetworkXNoPath, nx.NodeNotFound) as e:
                 raise EdgeNotFoundError(
                     f"No path exists between '{from_node}' and '{to_node}'"
-                )
+                ) from e
         else:
             # Validate provided path
             if len(path) < 2:
@@ -1400,7 +1401,8 @@ Follow directives from your controllers while maintaining your specialized role.
             if not cascade:
                 # Get all connected edges
                 connected_edges = [
-                    edge for edge in self._edges.values()
+                    edge
+                    for edge in self._edges.values()
                     if edge.from_node == node_id or edge.to_node == node_id
                 ]
                 if connected_edges:
@@ -1415,7 +1417,8 @@ Follow directives from your controllers while maintaining your specialized role.
             edges_to_remove = []
             if cascade:
                 edges_to_remove = [
-                    edge for edge in list(self._edges.values())
+                    edge
+                    for edge in list(self._edges.values())
                     if edge.from_node == node_id or edge.to_node == node_id
                 ]
 
@@ -1732,9 +1735,7 @@ Follow directives from your controllers while maintaining your specialized role.
         old_control_type = edge.properties.get("control_type")
         new_control_type = properties.get("control_type")
         control_type_changed = (
-            edge.directed and
-            new_control_type is not None and
-            old_control_type != new_control_type
+            edge.directed and new_control_type is not None and old_control_type != new_control_type
         )
 
         # Merge properties
@@ -1755,7 +1756,7 @@ Follow directives from your controllers while maintaining your specialized role.
 
     # ==================== Checkpoint Operations (Epic 7) ====================
 
-    def save_checkpoint(self, filepath: Optional[Path | str] = None) -> Path:
+    def save_checkpoint(self, filepath: Path | str | None = None) -> Path:
         """
         Save graph state to a checkpoint file.
 
@@ -1846,8 +1847,10 @@ Follow directives from your controllers while maintaining your specialized role.
 
             logger.debug(f"Restored edge '{edge_id}'")
 
-        logger.info(f"Loaded checkpoint from {filepath} - "
-                   f"restored {len(graph._nodes)} nodes and {len(graph._edges)} edges")
+        logger.info(
+            f"Loaded checkpoint from {filepath} - "
+            f"restored {len(graph._nodes)} nodes and {len(graph._edges)} edges"
+        )
         return graph
 
     async def _auto_save_worker(self) -> None:
@@ -1957,8 +1960,10 @@ Follow directives from your controllers while maintaining your specialized role.
                 self._adjacency[edge.to_node].append(edge.from_node)
                 self._nx_graph.add_edge(edge.to_node, edge.from_node)
 
-        logger.info(f"Recovered graph state from {latest} - "
-                   f"restored {len(self._nodes)} nodes and {len(self._edges)} edges")
+        logger.info(
+            f"Recovered graph state from {latest} - "
+            f"restored {len(self._nodes)} nodes and {len(self._edges)} edges"
+        )
         return True
 
     # ==================== Metrics Collection (Epic 8) ====================
@@ -2005,21 +2010,15 @@ Follow directives from your controllers while maintaining your specialized role.
             # Calculate average node degree
             if metrics.node_count > 0:
                 metrics.avg_node_degree = (
-                    2 * metrics.edge_count / metrics.node_count
-                    if metrics.edge_count > 0
-                    else 0.0
+                    2 * metrics.edge_count / metrics.node_count if metrics.edge_count > 0 else 0.0
                 )
 
             # Message and conversation metrics
             metrics.message_count = await self._count_messages()
-            metrics.active_conversations = await self._count_active_conversations(
-                time_window
-            )
+            metrics.active_conversations = await self._count_active_conversations(time_window)
 
             # Agent utilization
-            metrics.agent_utilization = await self._calculate_agent_utilization(
-                time_window
-            )
+            metrics.agent_utilization = await self._calculate_agent_utilization(time_window)
 
             # Error rate
             metrics.error_rate = await self._compute_error_rate(time_window)
@@ -2029,9 +2028,7 @@ Follow directives from your controllers while maintaining your specialized role.
 
             # Cache the metrics if caching is enabled
             if use_cache:
-                self._metrics_cache = CachedMetric(
-                    value=metrics, ttl_seconds=cache_ttl
-                )
+                self._metrics_cache = CachedMetric(value=metrics, ttl_seconds=cache_ttl)
 
             logger.info(
                 f"Computed metrics for graph '{self.name}': "
@@ -2059,14 +2056,9 @@ Follow directives from your controllers while maintaining your specialized role.
         """Count nodes with no edges."""
         isolated = 0
         for node_id in self._nodes:
-            if (
-                node_id not in self._adjacency
-                or len(self._adjacency[node_id]) == 0
-            ):
+            if node_id not in self._adjacency or len(self._adjacency[node_id]) == 0:
                 # Also check if any edges point to this node
-                has_incoming = any(
-                    edge.to_node == node_id for edge in self._edges.values()
-                )
+                has_incoming = any(edge.to_node == node_id for edge in self._edges.values())
                 if not has_incoming:
                     isolated += 1
         return isolated
@@ -2116,16 +2108,12 @@ Follow directives from your controllers while maintaining your specialized role.
                 if messages:
                     active_count += 1
             except Exception as e:
-                logger.debug(
-                    f"Could not check activity for edge {edge.edge_id}: {e}"
-                )
+                logger.debug(f"Could not check activity for edge {edge.edge_id}: {e}")
                 continue
 
         return active_count
 
-    async def _calculate_agent_utilization(
-        self, time_window: int
-    ) -> dict[str, float]:
+    async def _calculate_agent_utilization(self, time_window: int) -> dict[str, float]:
         """
         Calculate per-agent message throughput.
 
@@ -2154,9 +2142,7 @@ Follow directives from your controllers while maintaining your specialized role.
                         )
                         messages_count += len(messages)
                     except Exception as e:
-                        logger.debug(
-                            f"Could not count messages for edge {edge.edge_id}: {e}"
-                        )
+                        logger.debug(f"Could not count messages for edge {edge.edge_id}: {e}")
                         continue
 
             # Calculate messages per hour
@@ -2182,8 +2168,7 @@ Follow directives from your controllers while maintaining your specialized role.
             Error rate as fraction (0.0 to 1.0)
         """
         # Count nodes in error state
-        nodes_in_error = sum(1 for node in self._nodes.values()
-                            if node.status.value == "error")
+        nodes_in_error = sum(1 for node in self._nodes.values() if node.status.value == "error")
 
         # If no nodes and no errors recorded, error rate is 0
         if self.node_count == 0:
@@ -2194,4 +2179,3 @@ Follow directives from your controllers while maintaining your specialized role.
         error_rate = nodes_in_error / self.node_count if self.node_count > 0 else 0.0
 
         return min(error_rate, 1.0)  # Ensure it's between 0 and 1
-

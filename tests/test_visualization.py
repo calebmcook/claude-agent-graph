@@ -4,18 +4,16 @@ Tests for graph visualization exports (Epic 8).
 Tests GraphViz DOT format and JSON format exports for various graph structures.
 """
 
-import asyncio
 import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
 import pytest
-
 from claude_agent_graph import (
     AgentGraph,
+    VisualizationError,
     export_graphviz,
     export_json,
-    VisualizationError,
 )
 
 
@@ -49,18 +47,10 @@ async def complex_graph() -> AgentGraph:
     graph = AgentGraph(name="complex_graph")
 
     # Add nodes with metadata (passed as keyword args, not as 'metadata' dict)
-    await graph.add_node(
-        "supervisor", "Supervise tasks", role="supervisor"
-    )
-    await graph.add_node(
-        "worker_1", "Execute tasks", role="worker"
-    )
-    await graph.add_node(
-        "worker_2", "Execute tasks", role="worker"
-    )
-    await graph.add_node(
-        "monitor", "Monitor progress", role="monitor"
-    )
+    await graph.add_node("supervisor", "Supervise tasks", role="supervisor")
+    await graph.add_node("worker_1", "Execute tasks", role="worker")
+    await graph.add_node("worker_2", "Execute tasks", role="worker")
+    await graph.add_node("monitor", "Monitor progress", role="monitor")
 
     # Add edges with properties
     await graph.add_edge("supervisor", "worker_1", directed=True, priority="high")
@@ -96,9 +86,7 @@ class TestGraphVizExport:
         assert "->" in dot  # Has directed edges
 
     @pytest.mark.asyncio
-    async def test_export_graphviz_with_metadata(
-        self, simple_graph: AgentGraph
-    ) -> None:
+    async def test_export_graphviz_with_metadata(self, simple_graph: AgentGraph) -> None:
         """Test exporting with metadata included."""
         dot = export_graphviz(simple_graph, include_metadata=True)
 
@@ -129,9 +117,7 @@ class TestGraphVizExport:
         assert dot.strip().endswith("}")
 
     @pytest.mark.asyncio
-    async def test_export_graphviz_special_chars_escaped(
-        self, empty_graph: AgentGraph
-    ) -> None:
+    async def test_export_graphviz_special_chars_escaped(self, empty_graph: AgentGraph) -> None:
         """Test that special characters in node IDs are handled."""
         # Add nodes with special chars in ID
         await empty_graph.add_node("node-with-dashes", "Test prompt")
@@ -144,9 +130,7 @@ class TestGraphVizExport:
         assert "digraph" in dot
 
     @pytest.mark.asyncio
-    async def test_export_graphviz_node_colors(
-        self, simple_graph: AgentGraph
-    ) -> None:
+    async def test_export_graphviz_node_colors(self, simple_graph: AgentGraph) -> None:
         """Test node coloring by status."""
         dot = export_graphviz(simple_graph, node_style="status")
 
@@ -170,9 +154,7 @@ class TestJSONExport:
         assert result["links"] == []
 
     @pytest.mark.asyncio
-    async def test_export_json_node_link_format(
-        self, simple_graph: AgentGraph
-    ) -> None:
+    async def test_export_json_node_link_format(self, simple_graph: AgentGraph) -> None:
         """Test node-link JSON format (D3.js/Cytoscape compatible)."""
         result = export_json(simple_graph, format_type="node-link")
 
@@ -194,9 +176,7 @@ class TestJSONExport:
         assert all("directed" in link for link in links)
 
     @pytest.mark.asyncio
-    async def test_export_json_preserves_metadata(
-        self, complex_graph: AgentGraph
-    ) -> None:
+    async def test_export_json_preserves_metadata(self, complex_graph: AgentGraph) -> None:
         """Test that metadata is preserved in JSON export."""
         result = export_json(complex_graph, include_metadata=True)
 
@@ -207,9 +187,7 @@ class TestJSONExport:
         assert supervisor["metadata"]["role"] == "supervisor"
 
     @pytest.mark.asyncio
-    async def test_export_json_datetime_encoding(
-        self, simple_graph: AgentGraph
-    ) -> None:
+    async def test_export_json_datetime_encoding(self, simple_graph: AgentGraph) -> None:
         """Test that datetime objects are properly encoded."""
         result = export_json(simple_graph, include_metadata=True)
 
@@ -249,9 +227,7 @@ class TestJSONExport:
         assert len(parsed["links"]) == 3
 
     @pytest.mark.asyncio
-    async def test_export_json_adjacency_format(
-        self, simple_graph: AgentGraph
-    ) -> None:
+    async def test_export_json_adjacency_format(self, simple_graph: AgentGraph) -> None:
         """Test adjacency format JSON export."""
         result = export_json(simple_graph, format_type="adjacency")
 
@@ -267,9 +243,7 @@ class TestJSONExport:
         assert "node_3" in adjacency
 
     @pytest.mark.asyncio
-    async def test_export_json_invalid_format(
-        self, simple_graph: AgentGraph
-    ) -> None:
+    async def test_export_json_invalid_format(self, simple_graph: AgentGraph) -> None:
         """Test error handling for invalid format."""
         with pytest.raises(VisualizationError):
             export_json(simple_graph, format_type="invalid_format")

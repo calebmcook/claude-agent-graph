@@ -18,8 +18,6 @@ This will:
 
 import asyncio
 import json
-import time
-from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -51,7 +49,8 @@ class AnimatedGraphVisualizer:
 
     def generate_html(self) -> None:
         """Generate the HTML visualization."""
-        html = """
+        html = (
+            """
 <!DOCTYPE html>
 <html>
 <head>
@@ -275,7 +274,9 @@ class AnimatedGraphVisualizer:
     </div>
 
     <script>
-        const frames = JSON.parse('""" + json.dumps(self.frames) + """');
+        const frames = JSON.parse('"""
+            + json.dumps(self.frames)
+            + """');
         let currentFrame = 0;
         let isPlaying = false;
         let playInterval = null;
@@ -422,6 +423,7 @@ class AnimatedGraphVisualizer:
 </body>
 </html>
 """
+        )
         Path(self.output_path).write_text(html)
         print(f"\n✅ Visualization saved to: {self.output_path}")
         print(f"📖 Open in browser: file://{Path(self.output_path).absolute()}")
@@ -442,7 +444,7 @@ async def run_demo() -> None:
     await graph.add_node(
         "supervisor",
         "You are a research supervisor coordinating a team to solve a complex problem.",
-        role="supervisor"
+        role="supervisor",
     )
 
     # Create research agents
@@ -461,7 +463,6 @@ async def run_demo() -> None:
         await graph.add_edge("supervisor", agent_id, directed=True, role="delegation")
 
     # Create collaboration edges between agents
-    agent_ids = [a[0] for a in agents]
     await graph.add_edge("agent_a", "agent_b", directed=False, role="collaboration")
     await graph.add_edge("agent_b", "agent_c", directed=False, role="collaboration")
     await graph.add_edge("agent_c", "agent_d", directed=False, role="collaboration")
@@ -478,17 +479,11 @@ async def run_demo() -> None:
     print("\n2️⃣  Generating animation frames...")
 
     json_data = export_json(graph, format_type="node-link", include_metadata=True)
-    visualizer.add_frame(
-        json_data,
-        "Frame 0: Initial Setup",
-        thinking_nodes=[]
-    )
+    visualizer.add_frame(json_data, "Frame 0: Initial Setup", thinking_nodes=[])
 
     # Frame 1: Supervisor thinks about the problem
     visualizer.add_frame(
-        json_data,
-        "Frame 1: Supervisor Analyzing Problem",
-        thinking_nodes=["supervisor"]
+        json_data, "Frame 1: Supervisor Analyzing Problem", thinking_nodes=["supervisor"]
     )
 
     # Frame 2: Supervisor delegates to agent_a
@@ -496,14 +491,12 @@ async def run_demo() -> None:
         json_data,
         "Frame 2: Supervisor Delegates to Literature Review",
         message_exchange=("supervisor", "agent_a"),
-        thinking_nodes=["agent_a"]
+        thinking_nodes=["agent_a"],
     )
 
     # Frame 3: Agent A thinks and responds
     visualizer.add_frame(
-        json_data,
-        "Frame 3: Agent A Reviewing Literature",
-        thinking_nodes=["agent_a"]
+        json_data, "Frame 3: Agent A Reviewing Literature", thinking_nodes=["agent_a"]
     )
 
     # Frame 4: Supervisor delegates to agent_b
@@ -511,22 +504,18 @@ async def run_demo() -> None:
         json_data,
         "Frame 4: Supervisor Delegates to Data Analyst",
         message_exchange=("supervisor", "agent_b"),
-        thinking_nodes=["agent_b"]
+        thinking_nodes=["agent_b"],
     )
 
     # Frame 5: Agent B thinks
-    visualizer.add_frame(
-        json_data,
-        "Frame 5: Agent B Analyzing Data",
-        thinking_nodes=["agent_b"]
-    )
+    visualizer.add_frame(json_data, "Frame 5: Agent B Analyzing Data", thinking_nodes=["agent_b"])
 
     # Frame 6: Agent A and B collaborate
     visualizer.add_frame(
         json_data,
         "Frame 6: Agent A & B Collaborate",
         message_exchange=("agent_a", "agent_b"),
-        thinking_nodes=["agent_a", "agent_b"]
+        thinking_nodes=["agent_a", "agent_b"],
     )
 
     # Frame 7: Agent C joins
@@ -534,7 +523,7 @@ async def run_demo() -> None:
         json_data,
         "Frame 7: Supervisor Delegates to Methodology Expert",
         message_exchange=("supervisor", "agent_c"),
-        thinking_nodes=["agent_c"]
+        thinking_nodes=["agent_c"],
     )
 
     # Frame 8: Agent D joins
@@ -542,7 +531,7 @@ async def run_demo() -> None:
         json_data,
         "Frame 8: Supervisor Delegates to Systems Thinker",
         message_exchange=("supervisor", "agent_d"),
-        thinking_nodes=["agent_d"]
+        thinking_nodes=["agent_d"],
     )
 
     # Frame 9: Full collaboration
@@ -550,7 +539,7 @@ async def run_demo() -> None:
         json_data,
         "Frame 9: Full Team Collaboration",
         message_exchange=("agent_c", "agent_d"),
-        thinking_nodes=["agent_a", "agent_b", "agent_c", "agent_d"]
+        thinking_nodes=["agent_a", "agent_b", "agent_c", "agent_d"],
     )
 
     # Frame 10: Agents sharing insights
@@ -558,7 +547,7 @@ async def run_demo() -> None:
         json_data,
         "Frame 10: Cross-Team Discussion",
         message_exchange=("agent_d", "agent_a"),
-        thinking_nodes=["agent_a", "agent_d"]
+        thinking_nodes=["agent_a", "agent_d"],
     )
 
     # Frame 11: Results synthesis
@@ -566,7 +555,7 @@ async def run_demo() -> None:
         json_data,
         "Frame 11: Synthesizing Results",
         message_exchange=("agent_b", "agent_c"),
-        thinking_nodes=["agent_b", "agent_c"]
+        thinking_nodes=["agent_b", "agent_c"],
     )
 
     # Frame 12: Final report to supervisor
@@ -574,16 +563,12 @@ async def run_demo() -> None:
         json_data,
         "Frame 12: Final Report to Supervisor",
         message_exchange=("agent_a", "supervisor"),
-        thinking_nodes=["supervisor"]
+        thinking_nodes=["supervisor"],
     )
 
     # Frame 13: Complete
     metrics = await graph.get_metrics()
-    visualizer.add_frame(
-        json_data,
-        "Frame 13: Problem Solving Complete",
-        thinking_nodes=[]
-    )
+    visualizer.add_frame(json_data, "Frame 13: Problem Solving Complete", thinking_nodes=[])
 
     # Generate HTML
     print(f"✓ Generated {len(visualizer.frames)} animation frames")

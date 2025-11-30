@@ -10,10 +10,8 @@ Tests cover:
 
 import json
 from typing import Any
-from unittest.mock import AsyncMock, patch
+from unittest.mock import patch
 
-import pytest
-from flask import Flask
 from flask.testing import FlaskClient
 
 
@@ -67,9 +65,7 @@ class TestInitializeEndpoint:
         Args:
             client: Flask test client
         """
-        response = client.post(
-            "/api/initialize", content_type="application/json", data=""
-        )
+        response = client.post("/api/initialize", content_type="application/json", data="")
 
         # Flask returns 400 for missing/invalid JSON
         assert response.status_code in [400, 415]
@@ -415,9 +411,7 @@ class TestSupervisorChatEndpoint:
         Args:
             client: Flask test client
         """
-        response = client.post(
-            "/api/supervisor-chat", json={}, content_type="application/json"
-        )
+        response = client.post("/api/supervisor-chat", json={}, content_type="application/json")
 
         assert response.status_code == 400
 
@@ -573,9 +567,7 @@ class TestErrorHandling:
             initialize_request_payload: Sample request
         """
         # Setup mock to raise an exception
-        mock_loop.return_value.run_until_complete.side_effect = Exception(
-            "Test error"
-        )
+        mock_loop.return_value.run_until_complete.side_effect = Exception("Test error")
 
         response = client.post(
             "/api/initialize",

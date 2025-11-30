@@ -10,10 +10,11 @@ import tempfile
 from pathlib import Path
 
 import pytest
-
 from claude_agent_graph import AgentGraph
+from claude_agent_graph.backends import FilesystemBackend
 from claude_agent_graph.exceptions import (
     DuplicateEdgeError,
+    EdgeNotFoundError,
     NodeNotFoundError,
     TopologyViolationError,
 )
@@ -27,8 +28,7 @@ class TestBasicGraphIntegration:
         with tempfile.TemporaryDirectory() as tmpdir:
             graph = AgentGraph(
                 name="integration_test",
-                storage_backend="filesystem",
-                storage_path=tmpdir,
+                storage_backend=FilesystemBackend(base_dir=tmpdir),
             )
 
             # Add nodes
@@ -54,8 +54,7 @@ class TestBasicGraphIntegration:
         with tempfile.TemporaryDirectory() as tmpdir:
             graph = AgentGraph(
                 name="messaging_test",
-                storage_backend="filesystem",
-                storage_path=tmpdir,
+                storage_backend=FilesystemBackend(base_dir=tmpdir),
             )
 
             await graph.add_node("alice", "You are Alice.")
@@ -83,8 +82,7 @@ class TestBasicGraphIntegration:
         with tempfile.TemporaryDirectory() as tmpdir:
             graph = AgentGraph(
                 name="control_test",
-                storage_backend="filesystem",
-                storage_path=tmpdir,
+                storage_backend=FilesystemBackend(base_dir=tmpdir),
             )
 
             await graph.add_node("controller", "You are a controller.")
@@ -108,8 +106,7 @@ class TestMultiNodeIntegration:
         with tempfile.TemporaryDirectory() as tmpdir:
             graph = AgentGraph(
                 name="hierarchy_test",
-                storage_backend="filesystem",
-                storage_path=tmpdir,
+                storage_backend=FilesystemBackend(base_dir=tmpdir),
             )
 
             # Create hierarchy: manager -> team_lead -> worker
@@ -140,8 +137,7 @@ class TestMultiNodeIntegration:
         with tempfile.TemporaryDirectory() as tmpdir:
             graph = AgentGraph(
                 name="mesh_test",
-                storage_backend="filesystem",
-                storage_path=tmpdir,
+                storage_backend=FilesystemBackend(base_dir=tmpdir),
             )
 
             # Create mesh network
@@ -172,8 +168,7 @@ class TestDynamicGraphModification:
         with tempfile.TemporaryDirectory() as tmpdir:
             graph = AgentGraph(
                 name="dynamic_test",
-                storage_backend="filesystem",
-                storage_path=tmpdir,
+                storage_backend=FilesystemBackend(base_dir=tmpdir),
             )
 
             # Initial setup
@@ -193,8 +188,7 @@ class TestDynamicGraphModification:
         with tempfile.TemporaryDirectory() as tmpdir:
             graph = AgentGraph(
                 name="removal_test",
-                storage_backend="filesystem",
-                storage_path=tmpdir,
+                storage_backend=FilesystemBackend(base_dir=tmpdir),
             )
 
             await graph.add_node("central", "Central node")
@@ -216,8 +210,7 @@ class TestDynamicGraphModification:
         with tempfile.TemporaryDirectory() as tmpdir:
             graph = AgentGraph(
                 name="update_test",
-                storage_backend="filesystem",
-                storage_path=tmpdir,
+                storage_backend=FilesystemBackend(base_dir=tmpdir),
             )
 
             await graph.add_node("agent", "Original prompt")
@@ -341,15 +334,14 @@ class TestErrorHandling:
         with tempfile.TemporaryDirectory() as tmpdir:
             graph = AgentGraph(
                 name="error_test",
-                storage_backend="filesystem",
-                storage_path=tmpdir,
+                storage_backend=FilesystemBackend(base_dir=tmpdir),
             )
 
             await graph.add_node("node1", "Node 1")
             await graph.add_node("node2", "Node 2")
 
             # Try to send message without edge
-            with pytest.raises(Exception):  # Should raise appropriate error
+            with pytest.raises(EdgeNotFoundError):
                 await graph.send_message("node1", "node2", "Hello")
 
     async def test_add_duplicate_edge(self):
@@ -357,8 +349,7 @@ class TestErrorHandling:
         with tempfile.TemporaryDirectory() as tmpdir:
             graph = AgentGraph(
                 name="duplicate_test",
-                storage_backend="filesystem",
-                storage_path=tmpdir,
+                storage_backend=FilesystemBackend(base_dir=tmpdir),
             )
 
             await graph.add_node("node1", "Node 1")
@@ -374,8 +365,7 @@ class TestErrorHandling:
         with tempfile.TemporaryDirectory() as tmpdir:
             graph = AgentGraph(
                 name="nonexistent_test",
-                storage_backend="filesystem",
-                storage_path=tmpdir,
+                storage_backend=FilesystemBackend(base_dir=tmpdir),
             )
 
             with pytest.raises(NodeNotFoundError):
@@ -393,8 +383,7 @@ class TestConcurrency:
         with tempfile.TemporaryDirectory() as tmpdir:
             graph = AgentGraph(
                 name="concurrent_test",
-                storage_backend="filesystem",
-                storage_path=tmpdir,
+                storage_backend=FilesystemBackend(base_dir=tmpdir),
             )
 
             # Create star topology
@@ -423,8 +412,7 @@ class TestConcurrency:
         with tempfile.TemporaryDirectory() as tmpdir:
             graph = AgentGraph(
                 name="concurrent_add_test",
-                storage_backend="filesystem",
-                storage_path=tmpdir,
+                storage_backend=FilesystemBackend(base_dir=tmpdir),
             )
 
             # Add nodes concurrently
