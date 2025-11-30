@@ -5,7 +5,6 @@ Tests for FilesystemBackend storage implementation.
 from pathlib import Path
 
 import pytest
-
 from claude_agent_graph.backends import FilesystemBackend
 from claude_agent_graph.models import Message
 

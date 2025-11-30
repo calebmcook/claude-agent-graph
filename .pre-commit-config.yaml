@@ -26,7 +26,7 @@ repos:
       - id: mypy
         additional_dependencies:
           - pytest
-          - types-all
+        stages: [push]
         args:
           - --python-version=3.10
           - --ignore-missing-imports
@@ -55,7 +55,6 @@ repos:
         entry: pytest tests/test_flask_api.py -v --tb=short
         language: system
         types: [python]
-        stages: [commit]
         pass_filenames: false
         require_serial: true
         always_run: true

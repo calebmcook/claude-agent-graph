@@ -20,9 +20,9 @@ Requirements:
 """
 
 import asyncio
+
 from claude_agent_graph import AgentGraph
 from claude_agent_graph.exceptions import CommandAuthorizationError
-from claude_agent_graph.topology import GraphTopology
 
 
 async def main():
@@ -33,7 +33,6 @@ async def main():
     print("=" * 70)
 
     async with AgentGraph(name="command_demo") as graph:
-
         # ==========================================
         # STEP 1: Build Hierarchy
         # ==========================================
@@ -94,16 +93,16 @@ async def main():
             if controllers:
                 print(f"    Reports to: {controllers}")
             else:
-                print(f"    Reports to: (none - top level)")
+                print("    Reports to: (none - top level)")
 
             if subordinates:
                 print(f"    Manages: {subordinates}")
             else:
-                print(f"    Manages: (none - individual contributor)")
+                print("    Manages: (none - individual contributor)")
 
             # Check if system prompt was modified
             if node.effective_system_prompt != node.original_system_prompt:
-                print(f"    ✓ System prompt includes controller information")
+                print("    ✓ System prompt includes controller information")
 
         # ==========================================
         # STEP 3: Manager Issues Commands to Leads
@@ -120,8 +119,8 @@ async def main():
             deadline="2025-11-15",
         )
         print(f"✓ Command sent to backend_lead: {msg1.message_id}")
-        print(f"  Command: implement_api")
-        print(f"  Parameters: feature=user_authentication, priority=high")
+        print("  Command: implement_api")
+        print("  Parameters: feature=user_authentication, priority=high")
 
         # Command to frontend lead
         msg2 = await graph.execute_command(
@@ -133,8 +132,8 @@ async def main():
             deadline="2025-11-15",
         )
         print(f"✓ Command sent to frontend_lead: {msg2.message_id}")
-        print(f"  Command: build_ui")
-        print(f"  Parameters: feature=login_page, priority=high")
+        print("  Command: build_ui")
+        print("  Parameters: feature=login_page, priority=high")
 
         # ==========================================
         # STEP 4: Leads Issue Commands to Developers
@@ -142,7 +141,7 @@ async def main():
         print("\n4. Team leads delegate to developers...")
 
         # Backend lead to developer
-        msg3 = await graph.execute_command(
+        await graph.execute_command(
             controller="backend_lead",
             subordinate="backend_dev",
             command="implement_endpoint",
@@ -150,17 +149,17 @@ async def main():
             method="POST",
             auth_required=False,
         )
-        print(f"✓ Backend lead → Backend dev: implement_endpoint")
+        print("✓ Backend lead → Backend dev: implement_endpoint")
 
         # Frontend lead to developer
-        msg4 = await graph.execute_command(
+        await graph.execute_command(
             controller="frontend_lead",
             subordinate="frontend_dev",
             command="create_component",
             component="LoginForm",
             framework="React",
         )
-        print(f"✓ Frontend lead → Frontend dev: create_component")
+        print("✓ Frontend lead → Frontend dev: create_component")
 
         # ==========================================
         # STEP 5: Demonstrate Authorization Enforcement
@@ -240,17 +239,17 @@ async def main():
         print("\n7. System prompt verification:")
 
         backend_dev_node = graph.get_node("backend_dev")
-        print(f"\n  Backend Developer original prompt:")
+        print("\n  Backend Developer original prompt:")
         print(f"    {backend_dev_node.original_system_prompt[:80]}...")
 
-        print(f"\n  Backend Developer effective prompt (with controller info):")
+        print("\n  Backend Developer effective prompt (with controller info):")
         print(f"    {backend_dev_node.effective_system_prompt[:150]}...")
 
         # Check that controller info is present
         if "backend_lead" in backend_dev_node.effective_system_prompt:
-            print(f"\n  ✓ Controller information successfully injected into prompt")
+            print("\n  ✓ Controller information successfully injected into prompt")
         else:
-            print(f"\n  ✗ Warning: Controller information not found in prompt")
+            print("\n  ✗ Warning: Controller information not found in prompt")
 
         print("\n" + "=" * 70)
         print("✓ Control commands example completed successfully!")

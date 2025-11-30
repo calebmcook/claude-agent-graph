@@ -23,22 +23,23 @@ Requires:
 import asyncio
 import json
 import logging
-from datetime import datetime
-from flask import Flask, render_template, request, jsonify
-from flask_cors import CORS
 import os
+from datetime import datetime
 
 from claude_agent_graph import AgentGraph
 from claude_agent_sdk import ClaudeAgentOptions, ClaudeSDKClient
+from flask import Flask, jsonify, render_template, request
+from flask_cors import CORS
 
 # Configure logging with detailed format
-logging.basicConfig(
-    level=logging.DEBUG,
-    format='%(asctime)s [%(levelname)s] %(name)s: %(message)s'
-)
+logging.basicConfig(level=logging.DEBUG, format="%(asctime)s [%(levelname)s] %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
 
-app = Flask(__name__, template_folder=".", static_folder=".")
+app = Flask(
+    __name__,
+    template_folder=os.path.join(os.path.dirname(__file__)),
+    static_folder=os.path.join(os.path.dirname(__file__)),
+)
 CORS(app)
 
 # Global state
@@ -78,7 +79,7 @@ Your role is to:
 5. Synthesize their findings into a solution
 
 Be specific about what agents you create and why.""",
-            model="claude-haiku-4-5-20251001"
+            model="claude-haiku-4-5-20251001",
         )
 
         self.messages["supervisor"] = []
@@ -95,7 +96,7 @@ Be specific about what agents you create and why.""",
             system_prompt="""You are an expert at analyzing complex problems and planning team collaboration.
 When given a problem, analyze it and recommend what types of specialist agents would be needed to solve it.""",
             model="claude-haiku-4-5-20251001",
-            max_turns=1
+            max_turns=1,
         )
 
         supervisor_session = ClaudeSDKClient(supervisor_options)
@@ -125,15 +126,15 @@ Only respond with the JSON, no other text."""
                 logger.debug(f"Received message {message_count}: {type(message).__name__}")
 
                 # Check if this is an AssistantMessage (the actual response)
-                if type(message).__name__ == 'AssistantMessage':
-                    if hasattr(message, 'content') and message.content:
+                if type(message).__name__ == "AssistantMessage":
+                    if hasattr(message, "content") and message.content:
                         content = message.content
                         if isinstance(content, str):
                             response_text += content
                         elif isinstance(content, list):
                             # Extract text from content blocks
                             for block in content:
-                                if hasattr(block, 'text'):
+                                if hasattr(block, "text"):
                                     response_text += block.text
                     # Once we have the assistant response, stop waiting for more messages
                     logger.debug("Got AssistantMessage, breaking from message loop")
@@ -142,44 +143,53 @@ Only respond with the JSON, no other text."""
         logger.info(f"Supervisor response: {response_text}")
 
         # Parse JSON response
+        data = None
         try:
             data = json.loads(response_text)
         except json.JSONDecodeError:
             # Try to extract JSON from response
             import re
+
             # Try to extract JSON from markdown code blocks first
-            code_block_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', response_text, re.DOTALL)
+            code_block_match = re.search(
+                r"```(?:json)?\s*(\{.*?\})\s*```", response_text, re.DOTALL
+            )
             if code_block_match:
                 try:
                     data = json.loads(code_block_match.group(1))
                 except json.JSONDecodeError:
                     # Fall back to general JSON extraction
-                    json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
+                    json_match = re.search(r"\{.*\}", response_text, re.DOTALL)
                     if json_match:
-                        data = json.loads(json_match.group())
-                    else:
-                        raise
+                        try:
+                            data = json.loads(json_match.group())
+                        except json.JSONDecodeError:
+                            pass  # Will use defaults below
             else:
-                json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
+                json_match = re.search(r"\{.*\}", response_text, re.DOTALL)
                 if json_match:
-                    data = json.loads(json_match.group())
-                else:
-                    raise
-        except json.JSONDecodeError:
-            # Last resort - use defaults
+                    try:
+                        data = json.loads(json_match.group())
+                    except json.JSONDecodeError:
+                        pass  # Will use defaults below
+
+        # Last resort - use defaults if parsing failed
+        if data is None:
             data = {
                 "analysis": response_text,
                 "agents_needed": [
                     {"name": "agent_a", "role": "researcher", "description": "Conduct research"},
                     {"name": "agent_b", "role": "analyst", "description": "Analyze data"},
-                    {"name": "agent_c", "role": "engineer", "description": "Design solution"}
+                    {"name": "agent_c", "role": "engineer", "description": "Design solution"},
                 ],
-                "approach": "Systematic problem solving"
+                "approach": "Systematic problem solving",
             }
 
         # Create agents based on supervisor's recommendation
         agents_created = []
-        logger.info(f"Creating agents from supervisor recommendation. Graph exists: {self.graph is not None}")
+        logger.info(
+            f"Creating agents from supervisor recommendation. Graph exists: {self.graph is not None}"
+        )
 
         for i, agent_spec in enumerate(data.get("agents_needed", [])[:4]):  # Max 4 agents
             agent_name = agent_spec.get("name", f"agent_{chr(97+i)}")
@@ -194,7 +204,7 @@ Only respond with the JSON, no other text."""
 Your task: {agent_desc}
 Work collaboratively with other team members to solve the assigned problem.""",
                 model="claude-haiku-4-5-20251001",
-                role=agent_role
+                role=agent_role,
             )
 
             self.messages[agent_name] = []
@@ -206,7 +216,7 @@ Work collaboratively with other team members to solve the assigned problem.""",
 {agent_desc}
 Work collaboratively with other team members to solve the assigned problem.""",
                 model="claude-haiku-4-5-20251001",
-                max_turns=1
+                max_turns=1,
             )
             self.agent_sessions[agent_name] = ClaudeSDKClient(agent_options)
 
@@ -222,7 +232,7 @@ Work collaboratively with other team members to solve the assigned problem.""",
             "type": "supervisor_analysis",
             "analysis": data.get("analysis", ""),
             "agents": agents_created,
-            "graph": self._get_graph_state()
+            "graph": self._get_graph_state(),
         }
 
     async def delegate_to_agents(self, problem: str) -> dict:
@@ -248,7 +258,7 @@ Work collaboratively with other team members to solve the assigned problem.""",
             system_prompt=f"""You are a team coordinator. Your team members are: {agent_list}
 Your job is to assign them specific, actionable tasks to solve problems.""",
             model="claude-haiku-4-5-20251001",
-            max_turns=1
+            max_turns=1,
         )
         supervisor_session = ClaudeSDKClient(supervisor_options)
 
@@ -278,15 +288,15 @@ Respond ONLY with this JSON format, nothing else:
                 logger.debug(f"Delegation message {message_count}: {type(message).__name__}")
 
                 # Check if this is an AssistantMessage (the actual response)
-                if type(message).__name__ == 'AssistantMessage':
-                    if hasattr(message, 'content') and message.content:
+                if type(message).__name__ == "AssistantMessage":
+                    if hasattr(message, "content") and message.content:
                         content = message.content
                         if isinstance(content, str):
                             response_text += content
                         elif isinstance(content, list):
                             # Extract text from content blocks
                             for block in content:
-                                if hasattr(block, 'text'):
+                                if hasattr(block, "text"):
                                     response_text += block.text
                     # Once we have the assistant response, stop waiting for more messages
                     logger.debug("Got AssistantMessage, breaking from delegation loop")
@@ -297,18 +307,21 @@ Respond ONLY with this JSON format, nothing else:
             data = json.loads(response_text)
         except json.JSONDecodeError:
             import re
+
             # Try to extract JSON from markdown code blocks first
-            code_block_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', response_text, re.DOTALL)
+            code_block_match = re.search(
+                r"```(?:json)?\s*(\{.*?\})\s*```", response_text, re.DOTALL
+            )
             if code_block_match:
                 try:
                     data = json.loads(code_block_match.group(1))
                 except json.JSONDecodeError:
                     # Fall back to general JSON extraction
-                    json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
+                    json_match = re.search(r"\{.*\}", response_text, re.DOTALL)
                     data = json.loads(json_match.group()) if json_match else {"delegations": []}
             else:
                 # Fall back to general JSON extraction
-                json_match = re.search(r'\{.*\}', response_text, re.DOTALL)
+                json_match = re.search(r"\{.*\}", response_text, re.DOTALL)
                 data = json.loads(json_match.group()) if json_match else {"delegations": []}
 
         # Extract agent responses
@@ -326,10 +339,7 @@ Respond ONLY with this JSON format, nothing else:
 
             if matching_agent:
                 task = delegation.get("task", "")
-                results["delegations"].append({
-                    "agent": matching_agent,
-                    "task": task
-                })
+                results["delegations"].append({"agent": matching_agent, "task": task})
 
         return results
 
@@ -344,7 +354,7 @@ Respond ONLY with this JSON format, nothing else:
 You have been assigned to work on collaborative problem-solving tasks.
 Your name is {agent_id}. Focus on being helpful, specific, and actionable in your responses.""",
                 model="claude-haiku-4-5-20251001",
-                max_turns=1
+                max_turns=1,
             )
             self.agent_sessions[agent_id] = ClaudeSDKClient(agent_options)
 
@@ -364,15 +374,15 @@ Provide a focused, concise response addressing this task. Be specific and action
                 logger.debug(f"Agent {agent_id} message {message_count}: {type(message).__name__}")
 
                 # Check if this is an AssistantMessage (the actual response)
-                if type(message).__name__ == 'AssistantMessage':
-                    if hasattr(message, 'content') and message.content:
+                if type(message).__name__ == "AssistantMessage":
+                    if hasattr(message, "content") and message.content:
                         content = message.content
                         if isinstance(content, str):
                             agent_response += content
                         elif isinstance(content, list):
                             # Extract text from content blocks
                             for block in content:
-                                if hasattr(block, 'text'):
+                                if hasattr(block, "text"):
                                     agent_response += block.text
                     # Once we have the assistant response, stop waiting for more messages
                     logger.debug(f"Got AssistantMessage from {agent_id}, breaking")
@@ -392,7 +402,7 @@ Provide a focused, concise response addressing this task. Be specific and action
 You can ask clarifying questions, provide guidance, and help refine the problem-solving approach.
 Be conversational, helpful, and ask follow-up questions when needed to better understand the user's needs.""",
                 model="claude-haiku-4-5-20251001",
-                max_turns=1
+                max_turns=1,
             )
             self.agent_sessions["supervisor_chat"] = ClaudeSDKClient(supervisor_options)
 
@@ -408,15 +418,15 @@ Be conversational, helpful, and ask follow-up questions when needed to better un
                 logger.debug(f"Supervisor chat message {message_count}: {type(message).__name__}")
 
                 # Check if this is an AssistantMessage (the actual response)
-                if type(message).__name__ == 'AssistantMessage':
-                    if hasattr(message, 'content') and message.content:
+                if type(message).__name__ == "AssistantMessage":
+                    if hasattr(message, "content") and message.content:
                         content = message.content
                         if isinstance(content, str):
                             response_text += content
                         elif isinstance(content, list):
                             # Extract text from content blocks
                             for block in content:
-                                if hasattr(block, 'text'):
+                                if hasattr(block, "text"):
                                     response_text += block.text
                     # Once we have the assistant response, stop waiting for more messages
                     logger.debug("Got AssistantMessage from supervisor, breaking")
@@ -424,10 +434,7 @@ Be conversational, helpful, and ask follow-up questions when needed to better un
 
         if "supervisor" not in self.messages:
             self.messages["supervisor"] = []
-        self.messages["supervisor"].append({
-            "role": "assistant",
-            "content": response_text
-        })
+        self.messages["supervisor"].append({"role": "assistant", "content": response_text})
         logger.info(f"Supervisor response: {response_text[:100]}...")
         return response_text
 
@@ -442,17 +449,13 @@ Be conversational, helpful, and ask follow-up questions when needed to better un
                     "id": node.node_id,
                     "status": node.status.value,
                     "model": node.model,
-                    "metadata": node.metadata
+                    "metadata": node.metadata,
                 }
                 for node in self.graph.get_nodes()
             ]
 
             links = [
-                {
-                    "source": edge.from_node,
-                    "target": edge.to_node,
-                    "directed": edge.directed
-                }
+                {"source": edge.from_node, "target": edge.to_node, "directed": edge.directed}
                 for edge in self.graph._edges.values()
             ]
 
@@ -525,11 +528,7 @@ def supervisor_think():
 
     except Exception as e:
         logger.error(f"Error in supervisor thinking: {e}", exc_info=True)
-        error_response = {
-            "error": str(e),
-            "error_type": type(e).__name__,
-            "details": repr(e)
-        }
+        error_response = {"error": str(e), "error_type": type(e).__name__, "details": repr(e)}
         return jsonify(error_response), 500
 
 
@@ -567,11 +566,9 @@ def agent_response():
         response = loop.run_until_complete(manager.get_agent_response(agent_id, task))
         loop.close()
 
-        return jsonify({
-            "agent": agent_id,
-            "response": response,
-            "timestamp": datetime.now().isoformat()
-        })
+        return jsonify(
+            {"agent": agent_id, "response": response, "timestamp": datetime.now().isoformat()}
+        )
     except Exception as e:
         logger.error(f"Error getting agent response: {e}")
         return jsonify({"error": str(e)}), 500
@@ -594,12 +591,14 @@ def supervisor_chat():
         response = loop.run_until_complete(manager.chat_with_supervisor(user_message))
         loop.close()
 
-        return jsonify({
-            "role": "supervisor",
-            "message": user_message,
-            "response": response,
-            "timestamp": datetime.now().isoformat()
-        })
+        return jsonify(
+            {
+                "role": "supervisor",
+                "message": user_message,
+                "response": response,
+                "timestamp": datetime.now().isoformat(),
+            }
+        )
     except Exception as e:
         logger.error(f"Error in supervisor chat: {e}")
         return jsonify({"error": str(e)}), 500

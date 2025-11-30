@@ -19,9 +19,9 @@ Requirements:
 """
 
 import asyncio
+
 from claude_agent_graph import AgentGraph
 from claude_agent_graph.backends import FilesystemBackend
-from claude_agent_graph.topology import GraphTopology
 
 
 async def main():
@@ -34,11 +34,8 @@ async def main():
     # Create graph with filesystem storage
     async with AgentGraph(
         name="research_team",
-        storage_backend=FilesystemBackend(
-            base_dir="./conversations/research_team"
-        ),
+        storage_backend=FilesystemBackend(base_dir="./conversations/research_team"),
     ) as graph:
-
         # ==========================================
         # STEP 1: Build the Research Team
         # ==========================================

@@ -6,7 +6,6 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-
 from claude_agent_graph.backends import FilesystemBackend
 from claude_agent_graph.exceptions import AgentGraphError, CommandAuthorizationError
 from claude_agent_graph.graph import (
@@ -123,7 +122,7 @@ class TestNodeOperations:
         await graph.add_node(node_id="agent_1", system_prompt="Agent 1")
         await graph.add_node(node_id="agent_2", system_prompt="Agent 2")
 
-        with pytest.raises(Exception):  # AgentGraphError
+        with pytest.raises(AgentGraphError):
             await graph.add_node(node_id="agent_3", system_prompt="Agent 3")
 
     async def test_get_node(self):
@@ -2404,6 +2403,7 @@ class TestGraphMetrics:
 
         # Small delay to ensure timestamps are different
         import time
+
         time.sleep(0.01)
 
         metrics2 = await graph.get_metrics(use_cache=False)

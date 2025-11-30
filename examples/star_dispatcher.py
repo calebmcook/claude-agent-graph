@@ -7,6 +7,7 @@ coordinating multiple worker agents for task distribution.
 """
 
 import asyncio
+
 from claude_agent_graph import AgentGraph
 from claude_agent_graph.backends import FilesystemBackend
 from claude_agent_graph.topology import GraphTopology
@@ -46,8 +47,8 @@ async def main():
         assert topology == GraphTopology.STAR, f"Expected STAR, got {topology}"
 
         # Display system info
-        print(f"\nSystem Structure:")
-        print(f"  Hub: dispatcher")
+        print("\nSystem Structure:")
+        print("  Hub: dispatcher")
         print(f"  Spokes: {num_workers} workers")
         print(f"  Total nodes: {graph.node_count}")
 
@@ -56,7 +57,7 @@ async def main():
         print(f"\nWorkers reporting to dispatcher: {', '.join(workers)}")
 
         # Simulate task distribution
-        print(f"\nDistributing tasks:")
+        print("\nDistributing tasks:")
 
         tasks = [
             ("worker_0", "Completed: customer orders processing"),
@@ -72,14 +73,12 @@ async def main():
             print(f"  {worker_id} → dispatcher: {status}")
 
         # Check message counts
-        print(f"\nMessage counts:")
+        print("\nMessage counts:")
         for worker_id in workers:
             messages = await graph.get_conversation(worker_id, "dispatcher")
             print(f"  {worker_id} → dispatcher: {len(messages)} messages")
 
-        total_messages = sum(
-            len(await graph.get_conversation(w, "dispatcher")) for w in workers
-        )
+        total_messages = sum(len(await graph.get_conversation(w, "dispatcher")) for w in workers)
         print(f"\n✓ Total status reports received: {total_messages}")
 
 

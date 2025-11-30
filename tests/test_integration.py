@@ -10,11 +10,11 @@ import tempfile
 from pathlib import Path
 
 import pytest
-
 from claude_agent_graph import AgentGraph
 from claude_agent_graph.backends import FilesystemBackend
 from claude_agent_graph.exceptions import (
     DuplicateEdgeError,
+    EdgeNotFoundError,
     NodeNotFoundError,
     TopologyViolationError,
 )
@@ -336,7 +336,7 @@ class TestErrorHandling:
             await graph.add_node("node2", "Node 2")
 
             # Try to send message without edge
-            with pytest.raises(Exception):  # Should raise appropriate error
+            with pytest.raises(EdgeNotFoundError):
                 await graph.send_message("node1", "node2", "Hello")
 
     async def test_add_duplicate_edge(self):

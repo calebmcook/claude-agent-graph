@@ -7,6 +7,7 @@ a corporate organizational hierarchy with CEO, VPs, managers, and workers.
 """
 
 import asyncio
+
 from claude_agent_graph import AgentGraph
 from claude_agent_graph.backends import FilesystemBackend
 from claude_agent_graph.topology import GraphTopology
@@ -63,12 +64,12 @@ async def main():
         assert topology == GraphTopology.TREE, f"Expected TREE, got {topology}"
 
         # Display structure
-        print(f"\nOrganizational Structure:")
+        print("\nOrganizational Structure:")
         print(f"  Nodes: {graph.node_count}")
         print(f"  Edges: {graph.edge_count}")
 
         # Show control relationships
-        print(f"\nControl Relationships:")
+        print("\nControl Relationships:")
         for node_id in graph.get_nodes():
             controllers = graph.get_controllers(node_id.node_id)
             subordinates = graph.get_subordinates(node_id.node_id)
@@ -78,7 +79,7 @@ async def main():
                 print(f"  {node_id.node_id} manages: {', '.join(subordinates)}")
 
         # Example message flow: CEO -> VP -> Manager -> Worker
-        print(f"\nExample message flow:")
+        print("\nExample message flow:")
         await graph.send_message(
             "ceo",
             "vp_engineering",

@@ -9,9 +9,7 @@ These tests verify complete user workflows including:
 - Chat interactions
 """
 
-import json
 import re
-from typing import Optional
 
 import pytest
 from playwright.async_api import Browser, Page, expect
@@ -508,8 +506,6 @@ class TestErrorHandling:
         await page.fill("textarea[id='problemInput']", "Test problem")
         await page.click("button:has-text('Initialize')")
 
-        # If there's an error, it should be displayed
-        error_elements = page.locator("div[class*='error'], [role='alert']")
         # Just verify the page can handle it
         assert page.url.startswith(base_url)
 
@@ -571,9 +567,7 @@ class TestResponseiveness:
 class TestEndToEndCompletionWorkflow:
     """Tests for complete end-to-end workflows."""
 
-    async def test_complete_workflow_initialization_to_analysis(
-        self, page: Page, base_url: str
-    ):
+    async def test_complete_workflow_initialization_to_analysis(self, page: Page, base_url: str):
         """
         Test complete workflow from initialization to supervisor analysis.
 
@@ -600,9 +594,7 @@ class TestEndToEndCompletionWorkflow:
         # Verify we're still on the page
         assert page.url.startswith(base_url)
 
-    async def test_complete_workflow_through_delegation(
-        self, page: Page, base_url: str
-    ):
+    async def test_complete_workflow_through_delegation(self, page: Page, base_url: str):
         """
         Test workflow from initialization through delegation.
 

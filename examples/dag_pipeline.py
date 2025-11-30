@@ -7,6 +7,7 @@ pipeline with stages: Ingest → Transform → Validate → Store
 """
 
 import asyncio
+
 from claude_agent_graph import AgentGraph
 from claude_agent_graph.backends import FilesystemBackend
 from claude_agent_graph.topology import GraphTopology
@@ -50,17 +51,20 @@ async def main():
         # Verify topology (linear pipeline is detected as CHAIN, which is a type of DAG)
         topology = graph.get_topology()
         print(f"✓ Graph topology: {topology}")
-        assert topology in (GraphTopology.DAG, GraphTopology.CHAIN), f"Expected DAG or CHAIN, got {topology}"
+        assert topology in (
+            GraphTopology.DAG,
+            GraphTopology.CHAIN,
+        ), f"Expected DAG or CHAIN, got {topology}"
 
         # Display pipeline info
-        print(f"\nPipeline Structure:")
+        print("\nPipeline Structure:")
         print(f"  Stages: {graph.node_count}")
         print(f"  Connections: {graph.edge_count}")
 
         # Show data flow
-        print(f"\nData Flow:")
+        print("\nData Flow:")
         nodes = ["ingester", "transformer", "validator", "storage"]
-        for i, node in enumerate(nodes):
+        for node in nodes:
             next_nodes = graph.get_neighbors(node, direction="outgoing")
             if next_nodes:
                 print(f"  {node} → {next_nodes[0]}")
@@ -68,7 +72,7 @@ async def main():
                 print(f"  {node} (final stage)")
 
         # Simulate data batch processing
-        print(f"\nProcessing data batch:")
+        print("\nProcessing data batch:")
 
         await graph.send_message(
             "ingester",
@@ -92,7 +96,7 @@ async def main():
         print("  Stage 3: Data validated")
 
         # Get full pipeline conversation
-        print(f"\n✓ Pipeline execution complete")
+        print("\n✓ Pipeline execution complete")
         total_messages = 0
         for from_node in nodes[:-1]:
             to_node = graph.get_neighbors(from_node, direction="outgoing")[0]

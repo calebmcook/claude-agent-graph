@@ -35,7 +35,7 @@ class Message:
             "from": self.from_node,
             "to": self.to_node,
             "content": self.content,
-            "timestamp": self.timestamp
+            "timestamp": self.timestamp,
         }
 
 
@@ -73,7 +73,8 @@ class AnimatedGraphVisualizer:
 
     def generate_html(self) -> None:
         """Generate the HTML visualization."""
-        html = """
+        html = (
+            """
 <!DOCTYPE html>
 <html>
 <head>
@@ -432,7 +433,9 @@ class AnimatedGraphVisualizer:
     </div>
 
     <script>
-        const frames = JSON.parse('""" + json.dumps(self.frames) + """');
+        const frames = JSON.parse('"""
+            + json.dumps(self.frames)
+            + """');
         const nodeList = ['supervisor', 'agent_a', 'agent_b', 'agent_c', 'agent_d'];
         let currentFrame = 0;
         let isPlaying = false;
@@ -650,7 +653,8 @@ class AnimatedGraphVisualizer:
 </body>
 </html>
 """
-        Path(self.output_path).write_text(html, encoding='utf-8')
+        )
+        Path(self.output_path).write_text(html, encoding="utf-8")
         print(f"\n✅ Visualization saved to: {self.output_path}")
         print(f"📖 Open in browser: file://{Path(self.output_path).absolute()}")
 
@@ -683,15 +687,27 @@ async def run_demo(problem: str) -> None:
     await graph.add_node(
         "supervisor",
         f"You are a research supervisor coordinating a team to solve this problem: {problem}",
-        role="supervisor"
+        role="supervisor",
     )
 
     # Create research agents
     agents = [
-        ("agent_a", "You are a literature review specialist. Analyze relevant research and provide insights.", "literature"),
+        (
+            "agent_a",
+            "You are a literature review specialist. Analyze relevant research and provide insights.",
+            "literature",
+        ),
         ("agent_b", "You are a data analyst. Examine data and identify patterns.", "data"),
-        ("agent_c", "You are a methodology expert. Design the approach to solve the problem.", "methodology"),
-        ("agent_d", "You are a systems thinker. Ensure the solution works holistically.", "systems"),
+        (
+            "agent_c",
+            "You are a methodology expert. Design the approach to solve the problem.",
+            "methodology",
+        ),
+        (
+            "agent_d",
+            "You are a systems thinker. Ensure the solution works holistically.",
+            "systems",
+        ),
     ]
 
     for agent_id, prompt, specialty in agents:
@@ -719,9 +735,7 @@ async def run_demo(problem: str) -> None:
 
     # Frame 0: Initial state
     visualizer.add_frame(
-        json_data,
-        "Frame 0: Problem Assignment",
-        f"Supervisor presents problem: {problem}"
+        json_data, "Frame 0: Problem Assignment", f"Supervisor presents problem: {problem}"
     )
 
     # Frame 1: Supervisor delegates
@@ -730,7 +744,7 @@ async def run_demo(problem: str) -> None:
         json_data,
         "Frame 1: Supervisor Delegates to Literature Specialist",
         "Requesting literature review and research synthesis...",
-        message=msg
+        message=msg,
     )
 
     # Frame 2: Agent A responds
@@ -740,7 +754,7 @@ async def run_demo(problem: str) -> None:
         "Frame 2: Agent A Completes Literature Review",
         "Agent A shares findings from literature review",
         message=msg,
-        thinking_nodes=["agent_a"]
+        thinking_nodes=["agent_a"],
     )
 
     # Frame 3: Supervisor delegates to Agent B
@@ -749,7 +763,7 @@ async def run_demo(problem: str) -> None:
         json_data,
         "Frame 3: Supervisor Delegates to Data Analyst",
         "Requesting data analysis and pattern identification...",
-        message=msg
+        message=msg,
     )
 
     # Frame 4: Agent B responds
@@ -759,17 +773,21 @@ async def run_demo(problem: str) -> None:
         "Frame 4: Agent B Completes Data Analysis",
         "Agent B shares data insights and patterns",
         message=msg,
-        thinking_nodes=["agent_b"]
+        thinking_nodes=["agent_b"],
     )
 
     # Frame 5: Agents collaborate
-    msg = Message("agent_a", "agent_b", "Your data correlates with the methodology I found in literature. Let's share insights.")
+    msg = Message(
+        "agent_a",
+        "agent_b",
+        "Your data correlates with the methodology I found in literature. Let's share insights.",
+    )
     visualizer.add_frame(
         json_data,
         "Frame 5: Agents A & B Collaborate",
         "Literature specialist and data analyst exchange findings...",
         message=msg,
-        thinking_nodes=["agent_a", "agent_b"]
+        thinking_nodes=["agent_a", "agent_b"],
     )
 
     # Frame 6: Supervisor delegates to Agent C
@@ -778,7 +796,7 @@ async def run_demo(problem: str) -> None:
         json_data,
         "Frame 6: Supervisor Delegates to Methodology Expert",
         "Requesting solution design and approach...",
-        message=msg
+        message=msg,
     )
 
     # Frame 7: Agent C responds
@@ -788,7 +806,7 @@ async def run_demo(problem: str) -> None:
         "Frame 7: Agent C Designs Methodology",
         "Methodology expert proposes a two-phase approach",
         message=msg,
-        thinking_nodes=["agent_c"]
+        thinking_nodes=["agent_c"],
     )
 
     # Frame 8: Supervisor delegates to Agent D
@@ -797,7 +815,7 @@ async def run_demo(problem: str) -> None:
         json_data,
         "Frame 8: Supervisor Delegates to Systems Thinker",
         "Requesting systems-level analysis...",
-        message=msg
+        message=msg,
     )
 
     # Frame 9: Agent D responds
@@ -807,7 +825,7 @@ async def run_demo(problem: str) -> None:
         "Frame 9: Agent D Provides Systems Analysis",
         "Systems thinker validates solution across contexts",
         message=msg,
-        thinking_nodes=["agent_d"]
+        thinking_nodes=["agent_d"],
     )
 
     # Frame 10: Cross-team collaboration
@@ -817,26 +835,34 @@ async def run_demo(problem: str) -> None:
         "Frame 10: Methodology Expert & Systems Thinker Collaborate",
         "Team members refine the solution together...",
         message=msg,
-        thinking_nodes=["agent_c", "agent_d"]
+        thinking_nodes=["agent_c", "agent_d"],
     )
 
     # Frame 11: Full team discussion
-    msg = Message("agent_b", "agent_a", "The data strongly supports the literature-based approach. Should we integrate with the methodology?")
+    msg = Message(
+        "agent_b",
+        "agent_a",
+        "The data strongly supports the literature-based approach. Should we integrate with the methodology?",
+    )
     visualizer.add_frame(
         json_data,
         "Frame 11: Full Team Integration Discussion",
         "All team members contribute to solution refinement...",
         message=msg,
-        thinking_nodes=["agent_a", "agent_b", "agent_c", "agent_d"]
+        thinking_nodes=["agent_a", "agent_b", "agent_c", "agent_d"],
     )
 
     # Frame 12: Final report to supervisor
-    msg = Message("agent_c", "supervisor", "After full collaboration, here's the integrated solution: [comprehensive report with all insights synthesized]")
+    msg = Message(
+        "agent_c",
+        "supervisor",
+        "After full collaboration, here's the integrated solution: [comprehensive report with all insights synthesized]",
+    )
     visualizer.add_frame(
         json_data,
         "Frame 12: Final Solution Presented",
         "Agents present integrated solution to supervisor",
-        message=msg
+        message=msg,
     )
 
     # Frame 13: Supervisor synthesizes
@@ -846,23 +872,23 @@ async def run_demo(problem: str) -> None:
         "Frame 13: Supervisor Synthesizes Final Solution",
         "Supervisor provides integrated summary and approval",
         message=msg,
-        thinking_nodes=["supervisor"]
+        thinking_nodes=["supervisor"],
     )
 
     # Frame 14: Complete
     visualizer.add_frame(
         json_data,
         "Frame 14: Problem Solved",
-        "Agent collaboration successfully solved the problem!"
+        "Agent collaboration successfully solved the problem!",
     )
 
     # Generate HTML
-    print(f"2️⃣  Generating animation...")
+    print("2️⃣  Generating animation...")
     print(f"✓ Generated {len(visualizer.frames)} animation frames")
     visualizer.generate_html()
 
     # Show metrics
-    print(f"\n3️⃣  Final Metrics:")
+    print("\n3️⃣  Final Metrics:")
     metrics = await graph.get_metrics()
     print(f"   Nodes:      {metrics.node_count}")
     print(f"   Edges:      {metrics.edge_count}")

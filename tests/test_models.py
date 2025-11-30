@@ -5,8 +5,6 @@ Unit tests for claude-agent-graph data models.
 from datetime import datetime, timezone
 
 import pytest
-from pydantic import ValidationError
-
 from claude_agent_graph.models import (
     Edge,
     Message,
@@ -15,6 +13,7 @@ from claude_agent_graph.models import (
     NodeStatus,
     SharedState,
 )
+from pydantic import ValidationError
 
 
 class TestMessage:
