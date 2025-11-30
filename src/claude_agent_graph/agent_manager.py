@@ -174,11 +174,14 @@ class AgentSessionManager:
             AgentGraphError: If stop operation fails
         """
         if node_id not in self._contexts:
-            logger.warning(f"Agent '{node_id}' is not running - nothing to stop")
+            logger.debug(f"Agent '{node_id}' is not running - nothing to stop")
             return
 
         context = self._contexts.pop(node_id)
         node = self._graph.get_node(node_id)
+
+        # Always mark as stopped, regardless of errors during cleanup
+        node.status = NodeStatus.STOPPED
 
         try:
             # Use a timeout to prevent hanging on SDK disconnect issues
@@ -192,13 +195,11 @@ class AgentSessionManager:
                 # RuntimeError can occur with "Attempted to exit a cancel scope" errors
                 logger.debug(f"Agent '{node_id}' disconnect encountered cancellation/scope error, continuing")
 
-            node.status = NodeStatus.STOPPED
-            logger.info(f"Stopped agent '{node_id}' (status: {node.status.value})")
+            logger.debug(f"Stopped agent '{node_id}' (status: {node.status.value})")
 
         except Exception as e:
             # Log but don't re-raise during cleanup - we want to stop all agents
-            logger.debug(f"Error stopping agent '{node_id}': {e}")
-            node.status = NodeStatus.STOPPED
+            logger.debug(f"Error stopping agent '{node_id}' during cleanup: {e}")
 
     async def restart_agent(self, node_id: str) -> None:
         """
@@ -225,15 +226,17 @@ class AgentSessionManager:
         stopping other agents.
         """
         node_ids = list(self._contexts.keys())
-        logger.info(f"Stopping {len(node_ids)} running agents...")
+        if node_ids:
+            logger.debug(f"Stopping {len(node_ids)} running agents...")
 
         for node_id in node_ids:
             try:
                 await self.stop_agent(node_id)
             except Exception as e:
-                logger.error(f"Error stopping agent '{node_id}' during cleanup: {e}")
+                logger.debug(f"Error stopping agent '{node_id}' during cleanup: {e}")
 
-        logger.info("All agents stopped")
+        if node_ids:
+            logger.debug("All agents stopped")
 
     async def with_retry(
         self,
