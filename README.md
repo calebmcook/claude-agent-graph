@@ -58,10 +58,13 @@ pip install -e .
 
 ## Quick Start
 
+### Basic Example - Supervisor & Worker
+
 ```python
 import asyncio
 from claude_agent_graph import AgentGraph
 from claude_agent_graph.backends import FilesystemBackend
+from claude_agent_graph.execution import ManualController
 
 async def main():
     # Create graph with filesystem storage
@@ -69,7 +72,7 @@ async def main():
         name="my_network",
         storage_backend=FilesystemBackend(base_dir="./conversations")
     ) as graph:
-        # Add agent nodes
+        # Add agent nodes with optional max_tokens configuration
         await graph.add_node(
             "coordinator",
             "You coordinate tasks and delegate to workers.",
@@ -79,11 +82,16 @@ async def main():
         await graph.add_node(
             "worker",
             "You execute tasks assigned to you.",
-            model="claude-sonnet-4-20250514"
+            model="claude-sonnet-4-20250514",
+            max_tokens=200  # Limit worker responses to 200 tokens
         )
 
-        # Create directed edge (coordinator controls worker)
+        # Create directed edge (coordinator controls worker, responses visible in same channel)
         await graph.add_edge("coordinator", "worker", directed=True)
+
+        # Setup manual execution (can also use ReactiveExecutor or ProactiveExecutor)
+        executor = ManualController(graph)
+        await executor.start()
 
         # Send message
         await graph.send_message(
@@ -92,12 +100,24 @@ async def main():
             "Please analyze the latest sales data and summarize key trends."
         )
 
-        # Get conversation history
-        messages = await graph.get_conversation("coordinator", "worker", limit=10)
+        # Step the worker to process the message
+        await executor.step("worker")
+
+        # Get conversation history (includes both request and response)
+        messages = await graph.get_conversation("coordinator", "worker", limit=20)
         for msg in messages:
-            print(f"{msg.from_node} → {msg.to_node}: {msg.content}")
+            sender_label = "📤" if msg.from_node == "coordinator" else "📥"
+            print(f"{sender_label} {msg.from_node} → {msg.to_node}: {msg.content[:100]}...")
+
+        await executor.stop()
 
 asyncio.run(main())
+```
+
+**Output:**
+```
+📤 coordinator → worker: Please analyze the latest sales data and summarize key trends.
+📥 worker → coordinator: Based on the sales data, here are the key trends...
 ```
 
 ---
@@ -367,6 +387,37 @@ async with AgentGraph(name="adaptive_system") as graph:
 
 ## Core Features
 
+### Max Tokens Configuration
+
+Control response length per agent using the `CLAUDE_CODE_MAX_OUTPUT_TOKENS` environment variable:
+
+```python
+# Coordinator can respond with unlimited tokens
+await graph.add_node(
+    "coordinator",
+    "You coordinate tasks.",
+    model="claude-sonnet-4-20250514"
+)
+
+# Worker limited to 100 tokens for brevity and cost control
+await graph.add_node(
+    "worker",
+    "You execute tasks.",
+    model="claude-sonnet-4-20250514",
+    max_tokens=100  # Automatically enforced via env variable
+)
+```
+
+**Benefits:**
+- **Cost Control** - Fewer tokens = lower API costs
+- **Response Brevity** - Force concise answers from specific agents
+- **Resource Management** - Limit computational overhead
+- **Per-Node Configuration** - Different limits for different agents in the same graph
+
+The environment variable `CLAUDE_CODE_MAX_OUTPUT_TOKENS` is automatically set when the agent session is created, and the Claude Agent SDK enforces the limit.
+
+---
+
 ### Control Relationships
 
 In directed edges, the source node automatically becomes a "controller" of the target node. The system injects controller information into subordinate prompts:
@@ -383,22 +434,36 @@ controllers = graph.get_controllers("worker")  # ['supervisor']
 subordinates = graph.get_subordinates("supervisor")  # ['worker']
 ```
 
-### Shared Conversation State
+### Shared Conversation State & Response Routing
 
-Each edge maintains a persistent JSONL file with timestamped messages:
+Each edge maintains a persistent JSONL file with timestamped messages. When an agent responds, the response is automatically routed back:
 
 ```python
 # Send message
-await graph.send_message("agent_a", "agent_b", "Hello")
+await graph.send_message("supervisor", "worker", "Analyze the data")
 
-# Read conversation
-messages = await graph.get_conversation("agent_a", "agent_b", limit=10)
+# Read conversation (includes both request and response)
+messages = await graph.get_conversation("supervisor", "worker", limit=10)
+
+# With directed edges, responses are stored in the same conversation channel
+# allowing the supervisor to see the worker's response in supervisory context
+for msg in messages:
+    print(f"{msg.from_node} → {msg.to_node}: {msg.content}")
+
+# Output:
+# supervisor → worker: Analyze the data
+# worker → supervisor: Analysis complete. Found 3 key insights...
 
 # Read recent messages since timestamp
 from datetime import datetime, timezone
 since = datetime(2025, 11, 4, 12, 0, 0, tzinfo=timezone.utc)
-recent = await graph.get_conversation("agent_a", "agent_b", since=since)
+recent = await graph.get_conversation("supervisor", "worker", since=since)
 ```
+
+**Response Routing Rules:**
+- **Bidirectional Edges**: Messages flow in both directions (classic two-way conversation)
+- **Directed Edges**: Supervisor sends to worker; worker responses appear in the same conversation thread for supervisor visibility
+- This preserves the supervisory hierarchy while enabling full communication
 
 ### Message Routing Patterns
 
@@ -573,10 +638,12 @@ pytest tests/test_flask_e2e_playwright.py --headed   # See browser
 
 **Implementation Status:**
 - ✅ Core graph operations (nodes, edges, topology)
-- ✅ Agent lifecycle management
-- ✅ Message routing and conversation state
+- ✅ Agent lifecycle management with graceful shutdown
+- ✅ Message routing and conversation state with automatic response handling
 - ✅ Control relationships and prompt injection
 - ✅ Execution modes (manual, reactive, proactive)
+- ✅ Per-node max_tokens configuration for cost/response control
+- ✅ Agent response routing for directed edge supervisory relationships
 - ⚠️ Persistence/checkpointing (has bugs - see [ISSUES_TODO.md](ISSUES_TODO.md))
 - ❌ Monitoring and telemetry (not implemented)
 - ❌ API documentation (in progress)

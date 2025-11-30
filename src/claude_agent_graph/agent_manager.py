@@ -77,17 +77,32 @@ class AgentSessionManager:
                 "model": node.model,
             }
 
+            # Prepare environment variables
+            env_vars = {}
+
+            # Pass through max_tokens as environment variable (CLAUDE_CODE_MAX_OUTPUT_TOKENS)
+            if node.max_tokens is not None:
+                env_vars["CLAUDE_CODE_MAX_OUTPUT_TOKENS"] = str(node.max_tokens)
+                logger.debug(f"Set CLAUDE_CODE_MAX_OUTPUT_TOKENS={node.max_tokens} for agent '{node.node_id}'")
+
             # Pass through relevant metadata fields to ClaudeAgentOptions
             # Map working_directory to cwd parameter
             if "working_directory" in node.metadata:
                 options_kwargs["cwd"] = node.metadata["working_directory"]
+
+            # Set environment variables if any are configured
+            if env_vars:
+                options_kwargs["env"] = env_vars
 
             options = ClaudeAgentOptions(**options_kwargs)
 
             client = ClaudeSDKClient(options=options)
             self._sessions[node_id] = client
 
-            logger.info(f"Created session for agent '{node_id}' with model '{node.model}'")
+            log_msg = f"Created session for agent '{node_id}' with model '{node.model}'"
+            if node.max_tokens is not None:
+                log_msg += f" (max_tokens={node.max_tokens})"
+            logger.info(log_msg)
             return client
 
         except Exception as e:
@@ -166,13 +181,24 @@ class AgentSessionManager:
         node = self._graph.get_node(node_id)
 
         try:
-            await context.__aexit__(None, None, None)
+            # Use a timeout to prevent hanging on SDK disconnect issues
+            # The SDK's disconnect can have issues with anyio cancel scopes
+            try:
+                await asyncio.wait_for(context.__aexit__(None, None, None), timeout=5.0)
+            except asyncio.TimeoutError:
+                logger.debug(f"Agent '{node_id}' disconnect timed out after 5s, continuing anyway")
+            except (asyncio.CancelledError, RuntimeError) as e:
+                # Ignore cancelled/runtime errors during shutdown - these are common with the SDK
+                # RuntimeError can occur with "Attempted to exit a cancel scope" errors
+                logger.debug(f"Agent '{node_id}' disconnect encountered cancellation/scope error, continuing")
+
             node.status = NodeStatus.STOPPED
             logger.info(f"Stopped agent '{node_id}' (status: {node.status.value})")
 
         except Exception as e:
-            logger.error(f"Error stopping agent '{node_id}': {e}")
-            raise AgentGraphError(f"Error stopping agent '{node_id}': {e}") from e
+            # Log but don't re-raise during cleanup - we want to stop all agents
+            logger.debug(f"Error stopping agent '{node_id}': {e}")
+            node.status = NodeStatus.STOPPED
 
     async def restart_agent(self, node_id: str) -> None:
         """
